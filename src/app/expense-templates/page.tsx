@@ -17,6 +17,16 @@ type ExpenseTemplate = {
   } | null;
 };
 
+type ExpenseTemplateRow = {
+  id: string;
+  item_name: string;
+  default_amount: number;
+  interval_type: "monthly" | "bi-monthly" | "quarterly" | "specific_months";
+  specific_months: number[];
+  is_active: boolean;
+  categories: { name: string } | { name: string }[] | null;
+};
+
 export default function ExpenseTemplatesPage() {
   const [items, setItems] = useState<ExpenseTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +50,15 @@ export default function ExpenseTemplatesPage() {
       return;
     }
 
-    setItems((data as ExpenseTemplate[]) ?? []);
+    const rows: ExpenseTemplate[] =
+      ((data as ExpenseTemplateRow[]) ?? []).map((row) => ({
+        ...row,
+        categories: Array.isArray(row.categories)
+          ? (row.categories[0] ?? null)
+          : row.categories,
+      }));
+
+    setItems(rows);
     setLoading(false);
   };
 

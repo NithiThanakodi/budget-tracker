@@ -16,6 +16,16 @@ type ExpenseTemplate = {
   categories: { name: string } | null;
 };
 
+type ExpenseTemplateRow = {
+  id: string;
+  item_name: string;
+  default_amount: number;
+  interval_type: IntervalType;
+  specific_months: number[];
+  is_active: boolean;
+  categories: { name: string } | { name: string }[] | null;
+};
+
 type BudgetEntry = {
   id: string;
   template_id: string;
@@ -260,7 +270,13 @@ export default function BudgetGridPage() {
       return;
     }
 
-    const templateRows = (templatesRes.data as ExpenseTemplate[]) ?? [];
+    const templateRows: ExpenseTemplate[] =
+      ((templatesRes.data as ExpenseTemplateRow[]) ?? []).map((row) => ({
+        ...row,
+        categories: Array.isArray(row.categories)
+          ? (row.categories[0] ?? null)
+          : row.categories,
+      }));
     const entryRows = (entriesRes.data as BudgetEntry[]) ?? [];
     const sourceRows = (incomesRes.data as IncomeSource[]) ?? [];
     const sourceOverrideRows =
