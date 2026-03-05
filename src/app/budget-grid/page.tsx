@@ -63,6 +63,14 @@ type LoanPaymentEntry = {
   is_paid: boolean;
 };
 
+type LoanMonthlyOverride = {
+  id: string;
+  loan_kind: "fixed" | "jewel_type";
+  loan_ref: string;
+  month_year: string;
+  amount: number;
+};
+
 type FixedLoan = {
   id: string;
   loan_name: string;
@@ -137,6 +145,31 @@ const jewelInterestOnDueMonth = (loan: JewelLoan, monthDate: Date) => {
   return (Number(loan.loan_amount ?? 0) * Number(loan.interest_rate ?? 0)) / 100;
 };
 
+const controlClass =
+  "h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
+
+const moneyInputClass =
+  "h-[1.3rem] w-[96px] rounded-[5px] border bg-transparent px-2 text-right text-sm font-semibold text-black shadow-none tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500";
+
+const checkboxBaseClass =
+  "h-[1.2rem] w-[1.2rem] shrink-0 rounded-[5px] border bg-white/80 shadow-sm";
+const checkboxExpenseClass =
+  `${checkboxBaseClass} border-slate-500/70 accent-slate-800`;
+const checkboxFixedLoanClass =
+  `${checkboxBaseClass} border-rose-400/80 accent-rose-700`;
+const checkboxJewelLoanClass =
+  `${checkboxBaseClass} border-blue-400/80 accent-blue-700`;
+
+const getBalanceCellClass = (value: number) => {
+  if (value > 0) {
+    return "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/35 dark:text-emerald-100";
+  }
+  if (value < 0) {
+    return "bg-rose-100 text-rose-900 dark:bg-rose-900/35 dark:text-rose-100";
+  }
+  return "bg-amber-100 text-amber-900 dark:bg-amber-900/35 dark:text-amber-100";
+};
+
 export default function BudgetGridPage() {
   const [startMonth, setStartMonth] = useState(monthInputFromDate(new Date()));
   const [monthsToShow, setMonthsToShow] = useState(12);
@@ -147,11 +180,11 @@ export default function BudgetGridPage() {
   const [templates, setTemplates] = useState<ExpenseTemplate[]>([]);
   const [incomeSources, setIncomeSources] = useState<IncomeSource[]>([]);
   const [fixedLoans, setFixedLoans] = useState<FixedLoan[]>([]);
-  const [jewelLoans, setJewelLoans] = useState<JewelLoan[]>([]);
   const [cellMap, setCellMap] = useState<Record<string, CellState>>({});
   const [incomeCellMap, setIncomeCellMap] = useState<Record<string, AmountCellState>>({});
   const [cashCellMap, setCashCellMap] = useState<Record<string, AmountCellState>>({});
   const [loanPaidMap, setLoanPaidMap] = useState<Record<string, PaidCellState>>({});
+  const [loanAmountMap, setLoanAmountMap] = useState<Record<string, AmountCellState>>({});
 
   const months = useMemo(() => {
     const start = parseMonthInput(startMonth);
@@ -181,6 +214,7 @@ export default function BudgetGridPage() {
       incomeOverridesRes,
       cashInHandRes,
       loanPaymentsRes,
+      loanOverridesRes,
       loansRes,
       jewelLoansRes,
     ] =
@@ -216,6 +250,11 @@ export default function BudgetGridPage() {
       supabase
         .from("loan_payment_entries")
         .select("id, loan_kind, loan_ref, month_year, is_paid")
+        .gte("month_year", startDate)
+        .lte("month_year", endDate),
+      supabase
+        .from("loan_monthly_overrides")
+        .select("id, loan_kind, loan_ref, month_year, amount")
         .gte("month_year", startDate)
         .lte("month_year", endDate),
       supabase
@@ -259,6 +298,11 @@ export default function BudgetGridPage() {
       setLoading(false);
       return;
     }
+    if (loanOverridesRes.error) {
+      setError(loanOverridesRes.error.message);
+      setLoading(false);
+      return;
+    }
     if (loansRes.error) {
       setError(loansRes.error.message);
       setLoading(false);
@@ -283,6 +327,9 @@ export default function BudgetGridPage() {
       (incomeOverridesRes.data as IncomeMonthlyOverride[]) ?? [];
     const cashRows = (cashInHandRes.data as CashInHandEntry[]) ?? [];
     const loanPaymentRows = (loanPaymentsRes.data as LoanPaymentEntry[]) ?? [];
+    const loanOverrideRows = (loanOverridesRes.data as LoanMonthlyOverride[]) ?? [];
+    const fixedLoanRows = (loansRes.data as FixedLoan[]) ?? [];
+    const jewelLoanRows = (jewelLoansRes.data as JewelLoan[]) ?? [];
 
     const nextCellMap: Record<string, CellState> = {};
     const entryByKey = new Map(
@@ -343,14 +390,63 @@ export default function BudgetGridPage() {
       };
     }
 
+    const overrideByKey = new Map(
+      loanOverrideRows.map((row) => [
+        `${row.loan_kind}__${row.loan_ref}__${row.month_year}`,
+        row,
+      ]),
+    );
+    const nextLoanAmountMap: Record<string, AmountCellState> = {};
+
+    const getJewelTypeDefault = (type: "bank" | "pawn", monthDate: Date) => {
+      let total = 0;
+      for (const loan of jewelLoanRows) {
+        if (loan.loan_type === type) {
+          total += jewelInterestOnDueMonth(loan, monthDate);
+        }
+      }
+      return total;
+    };
+
+    for (const loan of fixedLoanRows) {
+      for (const month of months) {
+        const start = new Date(loan.start_date);
+        const end = loan.end_date ? new Date(loan.end_date) : null;
+        const inRange =
+          month.date >= new Date(start.getFullYear(), start.getMonth(), 1) &&
+          (!end || month.date <= new Date(end.getFullYear(), end.getMonth(), 1));
+        const key = `fixed__${loan.id}__${month.key}`;
+        const override = overrideByKey.get(key);
+        nextLoanAmountMap[key] = {
+          amount: String(override?.amount ?? (inRange ? Number(loan.monthly_emi ?? 0) : 0)),
+          entry_id: override?.id,
+        };
+      }
+    }
+
+    for (const month of months) {
+      const bankKey = `jewel_type__bank__${month.key}`;
+      const pawnKey = `jewel_type__pawn__${month.key}`;
+      const bankOverride = overrideByKey.get(bankKey);
+      const pawnOverride = overrideByKey.get(pawnKey);
+      nextLoanAmountMap[bankKey] = {
+        amount: String(bankOverride?.amount ?? getJewelTypeDefault("bank", month.date)),
+        entry_id: bankOverride?.id,
+      };
+      nextLoanAmountMap[pawnKey] = {
+        amount: String(pawnOverride?.amount ?? getJewelTypeDefault("pawn", month.date)),
+        entry_id: pawnOverride?.id,
+      };
+    }
+
     setTemplates(templateRows);
     setIncomeSources(sourceRows);
-    setFixedLoans((loansRes.data as FixedLoan[]) ?? []);
-    setJewelLoans((jewelLoansRes.data as JewelLoan[]) ?? []);
+    setFixedLoans(fixedLoanRows);
     setCellMap(nextCellMap);
     setIncomeCellMap(nextIncomeCellMap);
     setCashCellMap(nextCashCellMap);
     setLoanPaidMap(nextLoanPaidMap);
+    setLoanAmountMap(nextLoanAmountMap);
     setLoading(false);
   }, [months, monthsToShow, startMonth]);
 
@@ -390,6 +486,12 @@ export default function BudgetGridPage() {
     (kind: "fixed" | "jewel_type", ref: string, monthKey: string) =>
       loanPaidMap[`${kind}__${ref}__${monthKey}`] ?? { is_paid: false },
     [loanPaidMap],
+  );
+
+  const getLoanAmountCell = useCallback(
+    (kind: "fixed" | "jewel_type", ref: string, monthKey: string) =>
+      loanAmountMap[`${kind}__${ref}__${monthKey}`] ?? { amount: "0" },
+    [loanAmountMap],
   );
 
   const saveCell = async (
@@ -560,6 +662,46 @@ export default function BudgetGridPage() {
     setSavingCellKey(null);
   };
 
+  const saveLoanAmountCell = async (
+    kind: "fixed" | "jewel_type",
+    ref: string,
+    monthKey: string,
+  ) => {
+    const key = `${kind}__${ref}__${monthKey}`;
+    const current = getLoanAmountCell(kind, ref, monthKey);
+    setSavingCellKey(`loan-amount:${key}`);
+
+    const { data, error: upsertError } = await supabase
+      .from("loan_monthly_overrides")
+      .upsert(
+        {
+          id: current.entry_id,
+          loan_kind: kind,
+          loan_ref: ref,
+          month_year: monthKey,
+          amount: Number(current.amount) || 0,
+        },
+        { onConflict: "loan_kind,loan_ref,month_year" },
+      )
+      .select("id")
+      .single();
+
+    if (upsertError) {
+      setError(upsertError.message);
+      setSavingCellKey(null);
+      return;
+    }
+
+    setLoanAmountMap((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        entry_id: data.id,
+      },
+    }));
+    setSavingCellKey(null);
+  };
+
   const monthlyExpenseTotals = useMemo(() => {
     return months.map((month) => {
       let total = 0;
@@ -595,36 +737,24 @@ export default function BudgetGridPage() {
           m >= new Date(start.getFullYear(), start.getMonth(), 1) &&
           (!end || m <= new Date(end.getFullYear(), end.getMonth(), 1));
         if (inRange) {
-          total += Number(loan.monthly_emi ?? 0);
+          total += Number(getLoanAmountCell("fixed", loan.id, month.key).amount) || 0;
         }
       }
       return total;
     });
-  }, [months, fixedLoans]);
+  }, [months, fixedLoans, getLoanAmountCell]);
 
   const monthlyJewelBankTotals = useMemo(() => {
-    return months.map((month) => {
-      let total = 0;
-      for (const loan of jewelLoans) {
-        if (loan.loan_type === "bank") {
-          total += jewelInterestOnDueMonth(loan, month.date);
-        }
-      }
-      return total;
-    });
-  }, [months, jewelLoans]);
+    return months.map(
+      (month) => Number(getLoanAmountCell("jewel_type", "bank", month.key).amount) || 0,
+    );
+  }, [months, getLoanAmountCell]);
 
   const monthlyJewelPawnTotals = useMemo(() => {
-    return months.map((month) => {
-      let total = 0;
-      for (const loan of jewelLoans) {
-        if (loan.loan_type === "pawn") {
-          total += jewelInterestOnDueMonth(loan, month.date);
-        }
-      }
-      return total;
-    });
-  }, [months, jewelLoans]);
+    return months.map(
+      (month) => Number(getLoanAmountCell("jewel_type", "pawn", month.key).amount) || 0,
+    );
+  }, [months, getLoanAmountCell]);
 
   const monthlyJewelLoanTotals = useMemo(
     () =>
@@ -648,12 +778,12 @@ export default function BudgetGridPage() {
         }
         const paid = getLoanPaidCell("fixed", loan.id, month.key).is_paid;
         if (!paid) {
-          total += Number(loan.monthly_emi ?? 0);
+          total += Number(getLoanAmountCell("fixed", loan.id, month.key).amount) || 0;
         }
       }
       return total;
     });
-  }, [months, fixedLoans, getLoanPaidCell]);
+  }, [months, fixedLoans, getLoanPaidCell, getLoanAmountCell]);
 
   const monthlyRemainingJewelBankTotals = useMemo(() => {
     return months.map((month, index) => {
@@ -695,27 +825,51 @@ export default function BudgetGridPage() {
   );
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading budget grid...</p>;
+    return (
+      <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-cyan-50 p-8 dark:border-slate-800 dark:from-slate-950 dark:to-slate-900">
+        <p className="text-sm text-muted-foreground">Loading budget grid...</p>
+      </section>
+    );
   }
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Start Month</label>
+    <section className="space-y-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-cyan-50 p-4 shadow-sm dark:border-slate-800 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
+      <div className="rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-slate-800 dark:text-slate-100">
+              Multi-Month Budget Grid
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Spreadsheet-style planning with live totals and paid tracking.
+            </p>
+          </div>
+          {savingCellKey ? (
+            <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-medium text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-200">
+              Saving changes...
+            </span>
+          ) : (
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+              All changes saved
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Start Month</label>
           <input
             type="month"
             value={startMonth}
             onChange={(event) => setStartMonth(event.target.value)}
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            className={controlClass}
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Months</label>
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Months</label>
           <select
             value={String(monthsToShow)}
             onChange={(event) => setMonthsToShow(Number(event.target.value))}
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            className={controlClass}
           >
             <option value="6">6</option>
             <option value="12">12</option>
@@ -723,29 +877,27 @@ export default function BudgetGridPage() {
             <option value="24">24</option>
           </select>
         </div>
-        <Button variant="outline" onClick={loadData}>
+        <Button variant="outline" onClick={loadData} className="h-10 rounded-lg border-slate-300 dark:border-slate-700">
           Reload
         </Button>
-        {savingCellKey ? (
-          <span className="text-xs text-muted-foreground">Saving changes...</span>
-        ) : null}
+        </div>
       </div>
 
       {error ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+        <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300">
           {error}
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
         <table className="min-w-[1300px] border-collapse text-sm">
           <thead>
-            <tr className="border-b bg-muted/40">
-              <th className="sticky left-0 z-10 min-w-[250px] border-r bg-muted/40 px-3 py-2 text-left">
-                Expense
+            <tr className="border-b bg-slate-100/80 dark:bg-slate-900/80">
+              <th className="sticky left-0 z-20 min-w-[250px] border-r border-slate-200 bg-slate-100/95 px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-300">
+                Expense / Section
               </th>
               {months.map((month) => (
-                <th key={month.key} className="min-w-[130px] border-r px-3 py-2 text-left">
+                <th key={month.key} className="min-w-[130px] border-r border-slate-200 px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-800 dark:text-slate-300">
                   {month.label}
                 </th>
               ))}
@@ -779,46 +931,56 @@ export default function BudgetGridPage() {
               />
             ))}
 
-            <tr className="border-y bg-amber-100/60 font-semibold dark:bg-amber-900/30">
-              <td className="sticky left-0 z-10 border-r bg-amber-100/60 px-3 py-2 dark:bg-amber-900/30">
+            <tr className="border-y border-amber-200 bg-amber-100/80 font-semibold text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-100">
+              <td className="sticky left-0 z-10 border-r border-amber-200 bg-amber-100/95 px-3 py-1.5 dark:border-amber-900/40 dark:bg-amber-900/30">
                 Total Expense
               </td>
               {monthlyExpenseTotals.map((total, index) => (
-                <td key={`expense-total-${index}`} className="border-r px-3 py-2">
+                <td key={`expense-total-${index}`} className="border-r border-amber-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-amber-900/40">
                   {total}
                 </td>
               ))}
             </tr>
 
             <tr className="border-y bg-rose-100/60 font-semibold dark:bg-rose-900/30">
-              <td className="sticky left-0 z-10 border-r bg-rose-100/60 px-3 py-2 dark:bg-rose-900/30">
+              <td className="sticky left-0 z-10 border-r bg-rose-100/60 px-3 py-1.5 dark:bg-rose-900/30">
                 Fixed Loans
               </td>
               {months.map((month) => (
-                <td key={`fixed-header-${month.key}`} className="border-r px-3 py-2" />
+                <td key={`fixed-header-${month.key}`} className="border-r px-3 py-1.5" />
               ))}
             </tr>
             {fixedLoans.map((loan) => (
               <tr key={loan.id} className="border-t bg-rose-50/40 dark:bg-rose-950/20">
-                <td className="sticky left-0 z-10 border-r bg-rose-50/40 px-3 py-2 dark:bg-rose-950/20">
+                <td className="sticky left-0 z-10 border-r bg-rose-50/40 px-3 py-1.5 dark:bg-rose-950/20">
                   {loan.loan_name}
                   {!loan.is_active ? " (inactive)" : ""}
                 </td>
                 {months.map((month) => {
                   const start = new Date(loan.start_date);
                   const end = loan.end_date ? new Date(loan.end_date) : null;
+                  const fixedPaid = getLoanPaidCell("fixed", loan.id, month.key).is_paid;
+                  const fixedAmountCell = getLoanAmountCell("fixed", loan.id, month.key);
                   const inRange =
                     month.date >=
                       new Date(start.getFullYear(), start.getMonth(), 1) &&
                     (!end ||
                       month.date <= new Date(end.getFullYear(), end.getMonth(), 1));
                   return (
-                    <td key={`fixed-${loan.id}-${month.key}`} className="border-r px-3 py-2">
+                    <td
+                      key={`fixed-${loan.id}-${month.key}`}
+                      className={`border-r px-3 py-1.5 text-right tabular-nums ${
+                        inRange && fixedPaid
+                          ? "bg-rose-100/70 dark:bg-rose-900/30"
+                          : ""
+                      }`}
+                    >
                       {inRange ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-end gap-2">
                           <input
                             type="checkbox"
-                            checked={getLoanPaidCell("fixed", loan.id, month.key).is_paid}
+                            className={checkboxFixedLoanClass}
+                            checked={fixedPaid}
                             onChange={(event) =>
                               saveLoanPaidCell(
                                 "fixed",
@@ -828,44 +990,70 @@ export default function BudgetGridPage() {
                               )
                             }
                           />
-                          <span>{Number(loan.monthly_emi ?? 0)}</span>
+                          <input
+                            value={fixedAmountCell.amount}
+                            onChange={(event) =>
+                              setLoanAmountMap((prev) => ({
+                                ...prev,
+                                [`fixed__${loan.id}__${month.key}`]: {
+                                  ...getLoanAmountCell("fixed", loan.id, month.key),
+                                  amount: event.target.value,
+                                },
+                              }))
+                            }
+                            onBlur={() => saveLoanAmountCell("fixed", loan.id, month.key)}
+                            disabled={fixedPaid}
+                            className={`${moneyInputClass} ${
+                              fixedPaid
+                                ? "cursor-not-allowed border bg-rose-50/90 text-rose-800 opacity-80 dark:bg-rose-950/70 dark:text-rose-200"
+                                : ""
+                            }`}
+                          />
                         </div>
                       ) : (
-                        0
+                        <span className="text-sm tabular-nums">0</span>
                       )}
                     </td>
                   );
                 })}
               </tr>
             ))}
-            <tr className="border-y bg-rose-100/60 font-semibold dark:bg-rose-900/30">
-              <td className="sticky left-0 z-10 border-r bg-rose-100/60 px-3 py-2 dark:bg-rose-900/30">
+            <tr className="border-y border-rose-200 bg-rose-100/70 font-semibold text-rose-900 dark:border-rose-900/40 dark:bg-rose-900/25 dark:text-rose-100">
+              <td className="sticky left-0 z-10 border-r border-rose-200 bg-rose-100/90 px-3 py-1.5 dark:border-rose-900/40 dark:bg-rose-900/35">
                 Total Fixed Loans
               </td>
               {monthlyFixedLoanTotals.map((total, index) => (
-                <td key={`loan-total-${index}`} className="border-r px-3 py-2">
+                <td key={`loan-total-${index}`} className="border-r border-rose-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-rose-900/40">
                   {total}
                 </td>
               ))}
             </tr>
 
             <tr className="border-y bg-sky-100/60 font-semibold dark:bg-sky-900/30">
-              <td className="sticky left-0 z-10 border-r bg-sky-100/60 px-3 py-2 dark:bg-sky-900/30">
+              <td className="sticky left-0 z-10 border-r bg-sky-100/60 px-3 py-1.5 dark:bg-sky-900/30">
                 Jewel Loans (Interest Only on Due Month)
               </td>
               {months.map((month) => (
-                <td key={`jewel-header-${month.key}`} className="border-r px-3 py-2" />
+                <td key={`jewel-header-${month.key}`} className="border-r px-3 py-1.5" />
               ))}
             </tr>
             <tr className="border-t bg-sky-50/40 font-semibold dark:bg-sky-950/20">
-              <td className="sticky left-0 z-10 border-r bg-sky-50/40 px-3 py-2 dark:bg-sky-950/20">
+              <td className="sticky left-0 z-10 border-r bg-sky-50/40 px-3 py-1.5 dark:bg-sky-950/20">
                 Bank (Interest)
               </td>
               {months.map((month, index) => (
-                <td key={`jewel-bank-${index}`} className="border-r px-3 py-2">
-                  <div className="flex items-center gap-2">
+                <td
+                  key={`jewel-bank-${index}`}
+                  className={`border-r px-3 py-1.5 text-right tabular-nums ${
+                    getLoanPaidCell("jewel_type", "bank", month.key).is_paid
+                      ? "bg-blue-100/70 dark:bg-blue-900/30"
+                      : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-end gap-2">
                     <input
                       type="checkbox"
+                      className={checkboxJewelLoanClass}
                       checked={getLoanPaidCell("jewel_type", "bank", month.key).is_paid}
                       onChange={(event) =>
                         saveLoanPaidCell(
@@ -876,20 +1064,46 @@ export default function BudgetGridPage() {
                         )
                       }
                     />
-                    <span>{monthlyJewelBankTotals[index]}</span>
+                    <input
+                      value={getLoanAmountCell("jewel_type", "bank", month.key).amount}
+                      onChange={(event) =>
+                        setLoanAmountMap((prev) => ({
+                          ...prev,
+                          [`jewel_type__bank__${month.key}`]: {
+                            ...getLoanAmountCell("jewel_type", "bank", month.key),
+                            amount: event.target.value,
+                          },
+                        }))
+                      }
+                      onBlur={() => saveLoanAmountCell("jewel_type", "bank", month.key)}
+                      disabled={getLoanPaidCell("jewel_type", "bank", month.key).is_paid}
+                      className={`${moneyInputClass} ${
+                        getLoanPaidCell("jewel_type", "bank", month.key).is_paid
+                          ? "cursor-not-allowed border bg-blue-50/90 text-blue-800 opacity-80 dark:bg-blue-950/70 dark:text-blue-200"
+                          : ""
+                      }`}
+                    />
                   </div>
                 </td>
               ))}
             </tr>
             <tr className="border-t bg-sky-50/40 font-semibold dark:bg-sky-950/20">
-              <td className="sticky left-0 z-10 border-r bg-sky-50/40 px-3 py-2 dark:bg-sky-950/20">
+              <td className="sticky left-0 z-10 border-r bg-sky-50/40 px-3 py-1.5 dark:bg-sky-950/20">
                 Pawn (Interest)
               </td>
               {months.map((month, index) => (
-                <td key={`jewel-pawn-${index}`} className="border-r px-3 py-2">
-                  <div className="flex items-center gap-2">
+                <td
+                  key={`jewel-pawn-${index}`}
+                  className={`border-r px-3 py-1.5 text-right tabular-nums ${
+                    getLoanPaidCell("jewel_type", "pawn", month.key).is_paid
+                      ? "bg-blue-100/70 dark:bg-blue-900/30"
+                      : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-end gap-2">
                     <input
                       type="checkbox"
+                      className={checkboxJewelLoanClass}
                       checked={getLoanPaidCell("jewel_type", "pawn", month.key).is_paid}
                       onChange={(event) =>
                         saveLoanPaidCell(
@@ -900,47 +1114,65 @@ export default function BudgetGridPage() {
                         )
                       }
                     />
-                    <span>{monthlyJewelPawnTotals[index]}</span>
+                    <input
+                      value={getLoanAmountCell("jewel_type", "pawn", month.key).amount}
+                      onChange={(event) =>
+                        setLoanAmountMap((prev) => ({
+                          ...prev,
+                          [`jewel_type__pawn__${month.key}`]: {
+                            ...getLoanAmountCell("jewel_type", "pawn", month.key),
+                            amount: event.target.value,
+                          },
+                        }))
+                      }
+                      onBlur={() => saveLoanAmountCell("jewel_type", "pawn", month.key)}
+                      disabled={getLoanPaidCell("jewel_type", "pawn", month.key).is_paid}
+                      className={`${moneyInputClass} ${
+                        getLoanPaidCell("jewel_type", "pawn", month.key).is_paid
+                          ? "cursor-not-allowed border bg-blue-50/90 text-blue-800 opacity-80 dark:bg-blue-950/70 dark:text-blue-200"
+                          : ""
+                      }`}
+                    />
                   </div>
                 </td>
               ))}
             </tr>
             <tr className="border-y bg-sky-100/60 font-semibold dark:bg-sky-900/30">
-              <td className="sticky left-0 z-10 border-r bg-sky-100/60 px-3 py-2 dark:bg-sky-900/30">
+              <td className="sticky left-0 z-10 border-r bg-sky-100/60 px-3 py-1.5 dark:bg-sky-900/30">
                 Total Jewel Loans
               </td>
               {monthlyJewelLoanTotals.map((total, index) => (
-                <td key={`jewel-total-${index}`} className="border-r px-3 py-2">
+                <td key={`jewel-total-${index}`} className="border-r px-3 py-1.5 text-right text-base font-semibold tabular-nums">
                   {total}
                 </td>
               ))}
             </tr>
 
-            <tr className="border-y bg-sky-100/60 font-semibold dark:bg-sky-900/30">
-              <td className="sticky left-0 z-10 border-r bg-sky-100/60 px-3 py-2 dark:bg-sky-900/30">
+            <tr className="border-y border-violet-200 bg-violet-100/70 font-semibold text-violet-900 dark:border-violet-900/40 dark:bg-violet-900/25 dark:text-violet-100">
+              <td className="sticky left-0 z-10 border-r border-violet-200 bg-violet-100/90 px-3 py-1.5 dark:border-violet-900/40 dark:bg-violet-900/35">
                 Total Monthly Confirmed
               </td>
               {monthlyExpenseTotals.map((expense, index) => (
-                <td key={`confirmed-${index}`} className="border-r px-3 py-2">
+                <td key={`confirmed-${index}`} className="border-r border-violet-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-violet-900/40">
                   {expense + monthlyFixedLoanTotals[index] + monthlyJewelLoanTotals[index]}
                 </td>
               ))}
             </tr>
 
-            <tr className="border-y bg-emerald-100/60 font-semibold dark:bg-emerald-900/30">
-              <td className="sticky left-0 z-10 border-r bg-emerald-100/60 px-3 py-2 dark:bg-emerald-900/30">
+            <tr className="border-y bg-orange-100/60 font-semibold dark:bg-orange-900/30">
+              <td className="sticky left-0 z-10 border-r bg-orange-100/60 px-3 py-1.5 dark:bg-orange-900/30">
                 Income Sources
               </td>
               {months.map((month) => (
-                <td key={`income-header-${month.key}`} className="border-r px-3 py-2" />
+                <td key={`income-header-${month.key}`} className="border-r px-3 py-1.5" />
               ))}
             </tr>
             {incomeSources.map((source, sourceIndex) => (
               <tr
                 key={`${source.id}-${sourceIndex}`}
-                className="border-t bg-emerald-50/40 font-semibold dark:bg-emerald-950/20"
+                className="border-t bg-orange-50/40 font-semibold dark:bg-orange-950/20"
               >
-                <td className="sticky left-0 z-10 border-r bg-emerald-50/40 px-3 py-2 dark:bg-emerald-950/20">
+                <td className="sticky left-0 z-10 border-r bg-orange-50/40 px-3 py-1.5 dark:bg-orange-950/20">
                   {source.name}
                 </td>
                 {months.map((month) => {
@@ -948,7 +1180,7 @@ export default function BudgetGridPage() {
                   return (
                     <td
                       key={`income-${source.id}-${month.key}`}
-                      className="border-r px-2 py-1"
+                      className="border-r px-2 py-1 text-right tabular-nums"
                     >
                       <input
                         value={cell.amount}
@@ -962,29 +1194,29 @@ export default function BudgetGridPage() {
                           }))
                         }
                         onBlur={() => saveIncomeCell(source.id, month.key)}
-                        className="h-8 w-[88px] rounded border border-input bg-background px-2 text-right text-xs"
+                        className={moneyInputClass}
                       />
                     </td>
                   );
                 })}
               </tr>
             ))}
-            <tr className="border-y bg-emerald-100/60 font-semibold dark:bg-emerald-900/30">
-              <td className="sticky left-0 z-10 border-r bg-emerald-100/60 px-3 py-2 dark:bg-emerald-900/30">
+            <tr className="border-y border-orange-200 bg-orange-100/70 font-semibold text-orange-900 dark:border-orange-900/40 dark:bg-orange-900/25 dark:text-orange-100">
+              <td className="sticky left-0 z-10 border-r border-orange-200 bg-orange-100/90 px-3 py-1.5 dark:border-orange-900/40 dark:bg-orange-900/35">
                 Total Income
               </td>
               {months.map((month, index) => (
-                <td key={`income-total-${month.key}`} className="border-r px-3 py-2">
+                <td key={`income-total-${month.key}`} className="border-r border-orange-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-orange-900/40">
                   {monthlyIncomeTotals[index]}
                 </td>
               ))}
             </tr>
             <tr className="border-y bg-indigo-100/60 font-semibold dark:bg-indigo-900/30">
-              <td className="sticky left-0 z-10 border-r bg-indigo-100/60 px-3 py-2 dark:bg-indigo-900/30">
+              <td className="sticky left-0 z-10 border-r bg-indigo-100/60 px-3 py-1.5 dark:bg-indigo-900/30">
                 Remaining Expenses
               </td>
               {months.map((month, index) => (
-                <td key={`remaining-expenses-${month.key}`} className="border-r px-3 py-2">
+                <td key={`remaining-expenses-${month.key}`} className="border-r px-3 py-1.5 text-right text-base font-semibold tabular-nums">
                   {monthlyRemainingExpenseTemplateTotals[index] +
                     monthlyRemainingFixedLoanTotals[index] +
                     monthlyRemainingJewelLoanTotals[index]}
@@ -992,13 +1224,13 @@ export default function BudgetGridPage() {
               ))}
             </tr>
             <tr className="border-y bg-indigo-100/60 font-semibold dark:bg-indigo-900/30">
-              <td className="sticky left-0 z-10 border-r bg-indigo-100/60 px-3 py-2 dark:bg-indigo-900/30">
+              <td className="sticky left-0 z-10 border-r bg-indigo-100/60 px-3 py-1.5 dark:bg-indigo-900/30">
                 Cash In Hand
               </td>
               {months.map((month) => {
                 const cell = getCashCell(month.key);
                 return (
-                  <td key={`cash-in-hand-${month.key}`} className="border-r px-2 py-1">
+                  <td key={`cash-in-hand-${month.key}`} className="border-r px-2 py-1 text-right tabular-nums">
                     <input
                       value={cell.amount}
                       onChange={(event) =>
@@ -1011,24 +1243,33 @@ export default function BudgetGridPage() {
                         }))
                       }
                       onBlur={() => saveCashCell(month.key)}
-                      className="h-8 w-[88px] rounded border border-input bg-background px-2 text-right text-xs"
+                      className={moneyInputClass}
                     />
                   </td>
                 );
               })}
             </tr>
-            <tr className="border-y bg-green-200/70 font-bold dark:bg-green-900/50">
-              <td className="sticky left-0 z-10 border-r bg-green-200/70 px-3 py-2 dark:bg-green-900/50">
+            <tr className="border-y border-cyan-300 bg-cyan-200/80 font-bold text-cyan-950 dark:border-cyan-900/50 dark:bg-cyan-900/35 dark:text-cyan-100">
+              <td className="sticky left-0 z-10 border-r border-cyan-300 bg-cyan-200/95 px-3 py-1.5 dark:border-cyan-900/50 dark:bg-cyan-900/50">
                 Balance Amount
               </td>
-              {months.map((month, index) => (
-                <td key={`est-balance-${month.key}`} className="border-r px-3 py-2">
-                  {monthlyCashInHandTotals[index] -
-                    (monthlyRemainingExpenseTemplateTotals[index] +
-                      monthlyRemainingFixedLoanTotals[index] +
-                      monthlyRemainingJewelLoanTotals[index])}
-                </td>
-              ))}
+              {months.map((month, index) => {
+                const balanceValue =
+                  monthlyCashInHandTotals[index] -
+                  (monthlyRemainingExpenseTemplateTotals[index] +
+                    monthlyRemainingFixedLoanTotals[index] +
+                    monthlyRemainingJewelLoanTotals[index]);
+                return (
+                  <td
+                    key={`est-balance-${month.key}`}
+                    className={`border-r border-cyan-300 px-3 py-1.5 text-right text-lg font-extrabold tabular-nums dark:border-cyan-900/50 ${getBalanceCellClass(
+                      balanceValue,
+                    )}`}
+                  >
+                    {balanceValue}
+                  </td>
+                );
+              })}
             </tr>
           </tbody>
         </table>
@@ -1056,26 +1297,34 @@ function FragmentGroup({
 }) {
   return (
     <>
-      <tr className="border-t bg-muted/20">
-        <td className="sticky left-0 z-10 border-r bg-muted/20 px-3 py-2 font-semibold">
+      <tr className="border-t border-slate-200 bg-slate-100/70 dark:border-slate-800 dark:bg-slate-900/60">
+        <td className="sticky left-0 z-10 border-r border-slate-200 bg-slate-100/90 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-800 dark:bg-slate-900/85 dark:text-slate-300">
           {groupName}
         </td>
         {months.map((month) => (
-          <td key={`${groupName}-${month.key}`} className="border-r px-3 py-2" />
+          <td key={`${groupName}-${month.key}`} className="border-r border-slate-200 px-3 py-1.5 dark:border-slate-800" />
         ))}
       </tr>
       {rows.map((row) => (
-        <tr key={row.id} className="border-t">
-          <td className="sticky left-0 z-10 border-r bg-background px-3 py-2 font-medium">
+        <tr key={row.id} className="border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+          <td className="sticky left-0 z-10 border-r border-slate-200 bg-inherit px-3 py-1.5 font-medium text-slate-900 dark:border-slate-800 dark:text-slate-100">
             {row.item_name}
           </td>
           {months.map((month) => {
             const cell = getCell(row.id, month.key);
             return (
-              <td key={`${row.id}-${month.key}`} className="border-r px-2 py-1">
-                <div className="flex items-center gap-2">
+              <td
+                key={`${row.id}-${month.key}`}
+                className={`border-r border-slate-200 px-2 py-1 text-right tabular-nums dark:border-slate-800 ${
+                  cell.is_paid
+                    ? "bg-slate-200/80 dark:bg-slate-800/80"
+                    : "bg-transparent"
+                }`}
+              >
+                <div className="flex items-center justify-end gap-2">
                   <input
                     type="checkbox"
+                    className={checkboxExpenseClass}
                     checked={cell.is_paid}
                     onChange={(event) =>
                       onPaidToggle(row.id, month.key, event.target.checked)
@@ -1087,7 +1336,12 @@ function FragmentGroup({
                       onAmountChange(row.id, month.key, event.target.value)
                     }
                     onBlur={() => onAmountBlur(row.id, month.key)}
-                    className="h-8 w-[88px] rounded border border-input bg-background px-2 text-right text-xs"
+                    disabled={cell.is_paid}
+                    className={`${moneyInputClass} ${
+                      cell.is_paid
+                        ? "cursor-not-allowed border bg-slate-100 text-slate-600 opacity-90 dark:bg-slate-900 dark:text-slate-300"
+                        : ""
+                    }`}
                   />
                 </div>
               </td>
@@ -1098,3 +1352,4 @@ function FragmentGroup({
     </>
   );
 }
+

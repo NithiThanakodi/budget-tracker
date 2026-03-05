@@ -87,6 +87,16 @@ CREATE TABLE loan_payment_entries (
     UNIQUE(loan_kind, loan_ref, month_year)
 );
 
+-- 11. Loan amount monthly overrides (fixed loans + jewel loan type totals)
+CREATE TABLE loan_monthly_overrides (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    loan_kind TEXT NOT NULL CHECK (loan_kind IN ('fixed', 'jewel_type')),
+    loan_ref TEXT NOT NULL, -- fixed_loans.id (uuid as text) OR jewel type ('bank'/'pawn')
+    month_year DATE NOT NULL, -- Always first day of month
+    amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    UNIQUE(loan_kind, loan_ref, month_year)
+);
+
 -- 1. Table for Long-term Fixed Loans
 CREATE TABLE fixed_loans (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
