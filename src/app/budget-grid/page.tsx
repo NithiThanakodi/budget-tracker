@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "../../../utils/supabase";
 
 type IntervalType = "monthly" | "bi-monthly" | "quarterly" | "specific_months";
@@ -57,7 +58,7 @@ type CashInHandEntry = {
 
 type LoanPaymentEntry = {
   id: string;
-  loan_kind: "fixed" | "jewel_type";
+  loan_kind: "fixed" | "jewel_type" | "investment";
   loan_ref: string;
   month_year: string;
   is_paid: boolean;
@@ -65,7 +66,7 @@ type LoanPaymentEntry = {
 
 type LoanMonthlyOverride = {
   id: string;
-  loan_kind: "fixed" | "jewel_type";
+  loan_kind: "fixed" | "jewel_type" | "investment";
   loan_ref: string;
   month_year: string;
   amount: number;
@@ -87,6 +88,15 @@ type JewelLoan = {
   due_date: string | null;
 };
 
+type CeetuInvestment = {
+  id: string;
+  name: string;
+  monthly_emi: number;
+  start_date: string;
+  end_date: string | null;
+  is_active: boolean;
+};
+
 type CellState = {
   amount: string;
   is_paid: boolean;
@@ -100,6 +110,19 @@ type AmountCellState = {
 
 type PaidCellState = {
   is_paid: boolean;
+  entry_id?: string;
+};
+
+type GridComment = {
+  id: string;
+  cell_kind: "expense" | "loan" | "income" | "cash";
+  cell_ref: string;
+  month_year: string;
+  comment: string;
+};
+
+type CommentCellState = {
+  comment: string;
   entry_id?: string;
 };
 
@@ -159,6 +182,8 @@ const checkboxFixedLoanClass =
   `${checkboxBaseClass} border-rose-400/80 accent-rose-700`;
 const checkboxJewelLoanClass =
   `${checkboxBaseClass} border-blue-400/80 accent-blue-700`;
+const checkboxInvestmentClass =
+  `${checkboxBaseClass} border-violet-400/80 accent-violet-700`;
 
 const getBalanceCellClass = (value: number) => {
   if (value > 0) {
@@ -180,11 +205,14 @@ export default function BudgetGridPage() {
   const [templates, setTemplates] = useState<ExpenseTemplate[]>([]);
   const [incomeSources, setIncomeSources] = useState<IncomeSource[]>([]);
   const [fixedLoans, setFixedLoans] = useState<FixedLoan[]>([]);
+  const [ceetuInvestments, setCeetuInvestments] = useState<CeetuInvestment[]>([]);
   const [cellMap, setCellMap] = useState<Record<string, CellState>>({});
   const [incomeCellMap, setIncomeCellMap] = useState<Record<string, AmountCellState>>({});
   const [cashCellMap, setCashCellMap] = useState<Record<string, AmountCellState>>({});
   const [loanPaidMap, setLoanPaidMap] = useState<Record<string, PaidCellState>>({});
   const [loanAmountMap, setLoanAmountMap] = useState<Record<string, AmountCellState>>({});
+  const [commentMap, setCommentMap] = useState<Record<string, CommentCellState>>({});
+  const [openCommentKey, setOpenCommentKey] = useState<string | null>(null);
 
   const months = useMemo(() => {
     const start = parseMonthInput(startMonth);
@@ -217,55 +245,66 @@ export default function BudgetGridPage() {
       loanOverridesRes,
       loansRes,
       jewelLoansRes,
+      ceetuInvestmentsRes,
+      commentsRes,
     ] =
       await Promise.all([
+        supabase
+          .from("expense_templates")
+          .select(
+            "id, item_name, default_amount, interval_type, specific_months, is_active, categories(name)",
+          )
+          .eq("is_active", true)
+          .order("item_name", { ascending: true }),
+        supabase
+          .from("budget_entries")
+          .select("id, template_id, month_year, planned_amount, is_paid")
+          .gte("month_year", startDate)
+          .lte("month_year", endDate),
+        supabase
+          .from("income_sources")
+          .select("id, name, amount, sort_order, is_active")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .order("name", { ascending: true }),
+        supabase
+          .from("income_monthly_overrides")
+          .select("id, income_source_id, month_year, amount")
+          .gte("month_year", startDate)
+          .lte("month_year", endDate),
+        supabase
+          .from("cash_in_hand_entries")
+          .select("id, month_year, amount")
+          .gte("month_year", startDate)
+          .lte("month_year", endDate),
+        supabase
+          .from("loan_payment_entries")
+          .select("id, loan_kind, loan_ref, month_year, is_paid")
+          .gte("month_year", startDate)
+          .lte("month_year", endDate),
+        supabase
+          .from("loan_monthly_overrides")
+          .select("id, loan_kind, loan_ref, month_year, amount")
+          .gte("month_year", startDate)
+          .lte("month_year", endDate),
+        supabase
+          .from("fixed_loans")
+          .select("id, loan_name, monthly_emi, start_date, end_date, is_active")
+          .order("loan_name", { ascending: true }),
+        supabase
+          .from("jewel_loans")
+          .select("loan_type, loan_amount, interest_rate, due_date")
+          .order("loan_type", { ascending: true })
+          .order("due_date", { ascending: true }),
       supabase
-        .from("expense_templates")
-        .select(
-          "id, item_name, default_amount, interval_type, specific_months, is_active, categories(name)",
-        )
-        .eq("is_active", true)
-        .order("item_name", { ascending: true }),
-      supabase
-        .from("budget_entries")
-        .select("id, template_id, month_year, planned_amount, is_paid")
-        .gte("month_year", startDate)
-        .lte("month_year", endDate),
-      supabase
-        .from("income_sources")
-        .select("id, name, amount, sort_order, is_active")
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true })
+        .from("ceetu_investments")
+        .select("id, name, monthly_emi, start_date, end_date, is_active")
         .order("name", { ascending: true }),
       supabase
-        .from("income_monthly_overrides")
-        .select("id, income_source_id, month_year, amount")
+        .from("budget_grid_comments")
+        .select("id, cell_kind, cell_ref, month_year, comment")
         .gte("month_year", startDate)
         .lte("month_year", endDate),
-      supabase
-        .from("cash_in_hand_entries")
-        .select("id, month_year, amount")
-        .gte("month_year", startDate)
-        .lte("month_year", endDate),
-      supabase
-        .from("loan_payment_entries")
-        .select("id, loan_kind, loan_ref, month_year, is_paid")
-        .gte("month_year", startDate)
-        .lte("month_year", endDate),
-      supabase
-        .from("loan_monthly_overrides")
-        .select("id, loan_kind, loan_ref, month_year, amount")
-        .gte("month_year", startDate)
-        .lte("month_year", endDate),
-      supabase
-        .from("fixed_loans")
-        .select("id, loan_name, monthly_emi, start_date, end_date, is_active")
-        .order("loan_name", { ascending: true }),
-      supabase
-        .from("jewel_loans")
-        .select("loan_type, loan_amount, interest_rate, due_date")
-        .order("loan_type", { ascending: true })
-        .order("due_date", { ascending: true }),
     ]);
 
     if (templatesRes.error) {
@@ -313,6 +352,16 @@ export default function BudgetGridPage() {
       setLoading(false);
       return;
     }
+    if (ceetuInvestmentsRes.error) {
+      setError(ceetuInvestmentsRes.error.message);
+      setLoading(false);
+      return;
+    }
+    if (commentsRes.error) {
+      setError(commentsRes.error.message);
+      setLoading(false);
+      return;
+    }
 
     const templateRows: ExpenseTemplate[] =
       ((templatesRes.data as ExpenseTemplateRow[]) ?? []).map((row) => ({
@@ -330,6 +379,9 @@ export default function BudgetGridPage() {
     const loanOverrideRows = (loanOverridesRes.data as LoanMonthlyOverride[]) ?? [];
     const fixedLoanRows = (loansRes.data as FixedLoan[]) ?? [];
     const jewelLoanRows = (jewelLoansRes.data as JewelLoan[]) ?? [];
+    const ceetuInvestmentRows =
+      (ceetuInvestmentsRes.data as CeetuInvestment[]) ?? [];
+    const commentRows = (commentsRes.data as GridComment[]) ?? [];
 
     const nextCellMap: Record<string, CellState> = {};
     const entryByKey = new Map(
@@ -397,6 +449,7 @@ export default function BudgetGridPage() {
       ]),
     );
     const nextLoanAmountMap: Record<string, AmountCellState> = {};
+    const nextCommentMap: Record<string, CommentCellState> = {};
 
     const getJewelTypeDefault = (type: "bank" | "pawn", monthDate: Date) => {
       let total = 0;
@@ -439,14 +492,42 @@ export default function BudgetGridPage() {
       };
     }
 
+    for (const investment of ceetuInvestmentRows) {
+      for (const month of months) {
+        const start = new Date(investment.start_date);
+        const end = investment.end_date ? new Date(investment.end_date) : null;
+        const inRange =
+          month.date >= new Date(start.getFullYear(), start.getMonth(), 1) &&
+          (!end || month.date <= new Date(end.getFullYear(), end.getMonth(), 1));
+        const key = `investment__${investment.id}__${month.key}`;
+        const override = overrideByKey.get(key);
+        nextLoanAmountMap[key] = {
+          amount: String(
+            override?.amount ?? (inRange ? Number(investment.monthly_emi ?? 0) : 0),
+          ),
+          entry_id: override?.id,
+        };
+      }
+    }
+
+    for (const row of commentRows) {
+      const commentKey = `${row.cell_kind}__${row.cell_ref}__${row.month_year}`;
+      nextCommentMap[commentKey] = {
+        comment: row.comment ?? "",
+        entry_id: row.id,
+      };
+    }
+
     setTemplates(templateRows);
     setIncomeSources(sourceRows);
     setFixedLoans(fixedLoanRows);
+    setCeetuInvestments(ceetuInvestmentRows);
     setCellMap(nextCellMap);
     setIncomeCellMap(nextIncomeCellMap);
     setCashCellMap(nextCashCellMap);
     setLoanPaidMap(nextLoanPaidMap);
     setLoanAmountMap(nextLoanAmountMap);
+    setCommentMap(nextCommentMap);
     setLoading(false);
   }, [months, monthsToShow, startMonth]);
 
@@ -483,13 +564,13 @@ export default function BudgetGridPage() {
   );
 
   const getLoanPaidCell = useCallback(
-    (kind: "fixed" | "jewel_type", ref: string, monthKey: string) =>
+    (kind: "fixed" | "jewel_type" | "investment", ref: string, monthKey: string) =>
       loanPaidMap[`${kind}__${ref}__${monthKey}`] ?? { is_paid: false },
     [loanPaidMap],
   );
 
   const getLoanAmountCell = useCallback(
-    (kind: "fixed" | "jewel_type", ref: string, monthKey: string) =>
+    (kind: "fixed" | "jewel_type" | "investment", ref: string, monthKey: string) =>
       loanAmountMap[`${kind}__${ref}__${monthKey}`] ?? { amount: "0" },
     [loanAmountMap],
   );
@@ -614,7 +695,7 @@ export default function BudgetGridPage() {
   };
 
   const saveLoanPaidCell = async (
-    kind: "fixed" | "jewel_type",
+    kind: "fixed" | "jewel_type" | "investment",
     ref: string,
     monthKey: string,
     isPaid: boolean,
@@ -663,7 +744,7 @@ export default function BudgetGridPage() {
   };
 
   const saveLoanAmountCell = async (
-    kind: "fixed" | "jewel_type",
+    kind: "fixed" | "jewel_type" | "investment",
     ref: string,
     monthKey: string,
   ) => {
@@ -693,6 +774,52 @@ export default function BudgetGridPage() {
     }
 
     setLoanAmountMap((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        entry_id: data.id,
+      },
+    }));
+    setSavingCellKey(null);
+  };
+
+  const getCommentCell = useCallback(
+    (kind: "expense" | "loan" | "income" | "cash", ref: string, monthKey: string) =>
+      commentMap[`${kind}__${ref}__${monthKey}`] ?? { comment: "" },
+    [commentMap],
+  );
+
+  const saveCommentCell = async (
+    kind: "expense" | "loan" | "income" | "cash",
+    ref: string,
+    monthKey: string,
+  ) => {
+    const key = `${kind}__${ref}__${monthKey}`;
+    const current = getCommentCell(kind, ref, monthKey);
+    setSavingCellKey(`comment:${key}`);
+
+    const { data, error: upsertError } = await supabase
+      .from("budget_grid_comments")
+      .upsert(
+        {
+          id: current.entry_id,
+          cell_kind: kind,
+          cell_ref: ref,
+          month_year: monthKey,
+          comment: current.comment.trim(),
+        },
+        { onConflict: "cell_kind,cell_ref,month_year" },
+      )
+      .select("id")
+      .single();
+
+    if (upsertError) {
+      setError(upsertError.message);
+      setSavingCellKey(null);
+      return;
+    }
+
+    setCommentMap((prev) => ({
       ...prev,
       [key]: {
         ...prev[key],
@@ -807,6 +934,51 @@ export default function BudgetGridPage() {
     [monthlyRemainingJewelBankTotals, monthlyRemainingJewelPawnTotals],
   );
 
+  const monthlyInvestmentTotals = useMemo(() => {
+    return months.map((month) => {
+      let total = 0;
+      for (const investment of ceetuInvestments) {
+        const start = new Date(investment.start_date);
+        const end = investment.end_date ? new Date(investment.end_date) : null;
+        const inRange =
+          month.date >= new Date(start.getFullYear(), start.getMonth(), 1) &&
+          (!end || month.date <= new Date(end.getFullYear(), end.getMonth(), 1));
+        if (inRange) {
+          total +=
+            Number(getLoanAmountCell("investment", investment.id, month.key).amount) || 0;
+        }
+      }
+      return total;
+    });
+  }, [months, ceetuInvestments, getLoanAmountCell]);
+
+  const monthlyRemainingInvestmentTotals = useMemo(() => {
+    return months.map((month) => {
+      let total = 0;
+      for (const investment of ceetuInvestments) {
+        const start = new Date(investment.start_date);
+        const end = investment.end_date ? new Date(investment.end_date) : null;
+        const inRange =
+          month.date >= new Date(start.getFullYear(), start.getMonth(), 1) &&
+          (!end || month.date <= new Date(end.getFullYear(), end.getMonth(), 1));
+        if (!inRange) {
+          continue;
+        }
+        const paid = getLoanPaidCell("investment", investment.id, month.key).is_paid;
+        if (!paid) {
+          total +=
+            Number(getLoanAmountCell("investment", investment.id, month.key).amount) || 0;
+        }
+      }
+      return total;
+    });
+  }, [
+    months,
+    ceetuInvestments,
+    getLoanPaidCell,
+    getLoanAmountCell,
+  ]);
+
   const monthlyIncomeTotals = useMemo(
     () =>
       months.map((month) => {
@@ -857,29 +1029,29 @@ export default function BudgetGridPage() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1">
             <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Start Month</label>
-          <input
-            type="month"
-            value={startMonth}
-            onChange={(event) => setStartMonth(event.target.value)}
-            className={controlClass}
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Months</label>
-          <select
-            value={String(monthsToShow)}
-            onChange={(event) => setMonthsToShow(Number(event.target.value))}
-            className={controlClass}
-          >
-            <option value="6">6</option>
-            <option value="12">12</option>
-            <option value="18">18</option>
-            <option value="24">24</option>
-          </select>
-        </div>
-        <Button variant="outline" onClick={loadData} className="h-10 rounded-lg border-slate-300 dark:border-slate-700">
-          Reload
-        </Button>
+            <input
+              type="month"
+              value={startMonth}
+              onChange={(event) => setStartMonth(event.target.value)}
+              className={controlClass}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Months</label>
+            <select
+              value={String(monthsToShow)}
+              onChange={(event) => setMonthsToShow(Number(event.target.value))}
+              className={controlClass}
+            >
+              <option value="6">6</option>
+              <option value="12">12</option>
+              <option value="18">18</option>
+              <option value="24">24</option>
+            </select>
+          </div>
+          <Button variant="outline" onClick={loadData} className="h-10 rounded-lg border-slate-300 dark:border-slate-700">
+            Reload
+          </Button>
         </div>
       </div>
 
@@ -893,7 +1065,7 @@ export default function BudgetGridPage() {
         <table className="min-w-[1300px] border-collapse text-sm">
           <thead>
             <tr className="border-b bg-slate-100/80 dark:bg-slate-900/80">
-              <th className="sticky left-0 z-20 min-w-[250px] border-r border-slate-200 bg-slate-100/95 px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-300">
+              <th className="sticky left-0 z-20 min-w-[170px] border-r border-slate-200 bg-slate-100/95 px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-300">
                 Expense / Section
               </th>
               {months.map((month) => (
@@ -911,6 +1083,9 @@ export default function BudgetGridPage() {
                 rows={rows}
                 months={months}
                 getCell={getCell}
+                getCommentCell={getCommentCell}
+                openCommentKey={openCommentKey}
+                setOpenCommentKey={setOpenCommentKey}
                 onAmountChange={(templateId, monthKey, value) =>
                   setCellMap((prev) => ({
                     ...prev,
@@ -928,6 +1103,18 @@ export default function BudgetGridPage() {
                 onPaidToggle={(templateId, monthKey, value) =>
                   saveCell(templateId, monthKey, { is_paid: value })
                 }
+                onCommentChange={(templateId, monthKey, value) =>
+                  setCommentMap((prev) => ({
+                    ...prev,
+                    [`expense__${templateId}__${monthKey}`]: {
+                      ...getCommentCell("expense", templateId, monthKey),
+                      comment: value,
+                    },
+                  }))
+                }
+                onCommentSave={(templateId, monthKey) =>
+                  saveCommentCell("expense", templateId, monthKey)
+                }
               />
             ))}
 
@@ -937,6 +1124,145 @@ export default function BudgetGridPage() {
               </td>
               {monthlyExpenseTotals.map((total, index) => (
                 <td key={`expense-total-${index}`} className="border-r border-amber-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-amber-900/40">
+                  {total}
+                </td>
+              ))}
+            </tr>
+
+            <tr className="border-y bg-violet-100/60 font-semibold dark:bg-violet-900/30">
+              <td className="sticky left-0 z-10 border-r bg-violet-100/60 px-3 py-1.5 dark:bg-violet-900/30">
+                Ceetu Investments
+              </td>
+              {months.map((month) => (
+                <td key={`investment-header-${month.key}`} className="border-r px-3 py-1.5" />
+              ))}
+            </tr>
+            {ceetuInvestments.map((investment) => (
+              <tr key={investment.id} className="border-t bg-violet-50/40 dark:bg-violet-950/20">
+                <td className="sticky left-0 z-10 border-r bg-violet-50/40 px-3 py-1.5 dark:bg-violet-950/20">
+                  {investment.name}
+                  {!investment.is_active ? " (inactive)" : ""}
+                </td>
+                {months.map((month) => {
+                  const start = new Date(investment.start_date);
+                  const end = investment.end_date ? new Date(investment.end_date) : null;
+                  const inRange =
+                    month.date >= new Date(start.getFullYear(), start.getMonth(), 1) &&
+                    (!end || month.date <= new Date(end.getFullYear(), end.getMonth(), 1));
+                  const investmentPaid = getLoanPaidCell(
+                    "investment",
+                    investment.id,
+                    month.key,
+                  ).is_paid;
+                  const investmentAmountCell = getLoanAmountCell(
+                    "investment",
+                    investment.id,
+                    month.key,
+                  );
+                  return (
+                    <td
+                      key={`investment-${investment.id}-${month.key}`}
+                      className={`border-r px-3 py-1.5 text-right tabular-nums ${inRange && investmentPaid
+                        ? "bg-violet-100/70 dark:bg-violet-900/30"
+                        : ""
+                        }`}
+                    >
+                      {inRange ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <input
+                            type="checkbox"
+                            className={checkboxInvestmentClass}
+                            checked={investmentPaid}
+                            onChange={(event) =>
+                              saveLoanPaidCell(
+                                "investment",
+                                investment.id,
+                                month.key,
+                                event.target.checked,
+                              )
+                            }
+                          />
+                          <input
+                            value={investmentAmountCell.amount}
+                            onChange={(event) =>
+                              setLoanAmountMap((prev) => ({
+                                ...prev,
+                                [`investment__${investment.id}__${month.key}`]: {
+                                  ...getLoanAmountCell(
+                                    "investment",
+                                    investment.id,
+                                    month.key,
+                                  ),
+                                  amount: event.target.value,
+                                },
+                              }))
+                            }
+                            onBlur={() =>
+                              saveLoanAmountCell("investment", investment.id, month.key)
+                            }
+                            disabled={investmentPaid}
+                            className={`${moneyInputClass} ${investmentPaid
+                              ? "cursor-not-allowed border bg-violet-50/90 text-violet-800 opacity-80 dark:bg-violet-950/70 dark:text-violet-200"
+                              : ""
+                              }`}
+                          />
+                          <InlineCommentEditor
+                            commentKey={`loan__investment__${investment.id}__${month.key}`}
+                            value={
+                              getCommentCell(
+                                "loan",
+                                `investment__${investment.id}`,
+                                month.key,
+                              ).comment
+                            }
+                            isOpen={
+                              openCommentKey ===
+                              `loan__investment__${investment.id}__${month.key}`
+                            }
+                            onToggle={() =>
+                              setOpenCommentKey(
+                                openCommentKey ===
+                                  `loan__investment__${investment.id}__${month.key}`
+                                  ? null
+                                  : `loan__investment__${investment.id}__${month.key}`,
+                              )
+                            }
+                            onChange={(value) =>
+                              setCommentMap((prev) => ({
+                                ...prev,
+                                [`loan__investment__${investment.id}__${month.key}`]: {
+                                  ...getCommentCell(
+                                    "loan",
+                                    `investment__${investment.id}`,
+                                    month.key,
+                                  ),
+                                  comment: value,
+                                },
+                              }))
+                            }
+                            onSave={() =>
+                              saveCommentCell(
+                                "loan",
+                                `investment__${investment.id}`,
+                                month.key,
+                              )
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-sm tabular-nums">0</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            <tr className="border-y border-violet-200 bg-violet-100/70 font-semibold text-violet-900 dark:border-violet-900/40 dark:bg-violet-900/25 dark:text-violet-100">
+              <td className="sticky left-0 z-10 border-r border-violet-200 bg-violet-100/90 px-3 py-1.5 dark:border-violet-900/40 dark:bg-violet-900/35">
+                Total Investments
+              </td>
+              {monthlyInvestmentTotals.map((total, index) => (
+                <td key={`investment-total-${index}`} className="border-r border-violet-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-violet-900/40">
                   {total}
                 </td>
               ))}
@@ -963,17 +1289,16 @@ export default function BudgetGridPage() {
                   const fixedAmountCell = getLoanAmountCell("fixed", loan.id, month.key);
                   const inRange =
                     month.date >=
-                      new Date(start.getFullYear(), start.getMonth(), 1) &&
+                    new Date(start.getFullYear(), start.getMonth(), 1) &&
                     (!end ||
                       month.date <= new Date(end.getFullYear(), end.getMonth(), 1));
                   return (
                     <td
                       key={`fixed-${loan.id}-${month.key}`}
-                      className={`border-r px-3 py-1.5 text-right tabular-nums ${
-                        inRange && fixedPaid
-                          ? "bg-rose-100/70 dark:bg-rose-900/30"
-                          : ""
-                      }`}
+                      className={`border-r px-3 py-1.5 text-right tabular-nums ${inRange && fixedPaid
+                        ? "bg-rose-100/70 dark:bg-rose-900/30"
+                        : ""
+                        }`}
                     >
                       {inRange ? (
                         <div className="flex items-center justify-end gap-2">
@@ -1003,11 +1328,34 @@ export default function BudgetGridPage() {
                             }
                             onBlur={() => saveLoanAmountCell("fixed", loan.id, month.key)}
                             disabled={fixedPaid}
-                            className={`${moneyInputClass} ${
-                              fixedPaid
-                                ? "cursor-not-allowed border bg-rose-50/90 text-rose-800 opacity-80 dark:bg-rose-950/70 dark:text-rose-200"
-                                : ""
-                            }`}
+                            className={`${moneyInputClass} ${fixedPaid
+                              ? "cursor-not-allowed border bg-rose-50/90 text-rose-800 opacity-80 dark:bg-rose-950/70 dark:text-rose-200"
+                              : ""
+                              }`}
+                          />
+                          <InlineCommentEditor
+                            commentKey={`loan__fixed__${loan.id}__${month.key}`}
+                            value={getCommentCell("loan", `fixed__${loan.id}`, month.key).comment}
+                            isOpen={openCommentKey === `loan__fixed__${loan.id}__${month.key}`}
+                            onToggle={() =>
+                              setOpenCommentKey(
+                                openCommentKey === `loan__fixed__${loan.id}__${month.key}`
+                                  ? null
+                                  : `loan__fixed__${loan.id}__${month.key}`,
+                              )
+                            }
+                            onChange={(value) =>
+                              setCommentMap((prev) => ({
+                                ...prev,
+                                [`loan__fixed__${loan.id}__${month.key}`]: {
+                                  ...getCommentCell("loan", `fixed__${loan.id}`, month.key),
+                                  comment: value,
+                                },
+                              }))
+                            }
+                            onSave={() =>
+                              saveCommentCell("loan", `fixed__${loan.id}`, month.key)
+                            }
                           />
                         </div>
                       ) : (
@@ -1029,9 +1377,11 @@ export default function BudgetGridPage() {
               ))}
             </tr>
 
+
+
             <tr className="border-y bg-sky-100/60 font-semibold dark:bg-sky-900/30">
               <td className="sticky left-0 z-10 border-r bg-sky-100/60 px-3 py-1.5 dark:bg-sky-900/30">
-                Jewel Loans (Interest Only on Due Month)
+                Jewel Loans
               </td>
               {months.map((month) => (
                 <td key={`jewel-header-${month.key}`} className="border-r px-3 py-1.5" />
@@ -1044,11 +1394,10 @@ export default function BudgetGridPage() {
               {months.map((month, index) => (
                 <td
                   key={`jewel-bank-${index}`}
-                  className={`border-r px-3 py-1.5 text-right tabular-nums ${
-                    getLoanPaidCell("jewel_type", "bank", month.key).is_paid
-                      ? "bg-blue-100/70 dark:bg-blue-900/30"
-                      : ""
-                  }`}
+                  className={`border-r px-3 py-1.5 text-right tabular-nums ${getLoanPaidCell("jewel_type", "bank", month.key).is_paid
+                    ? "bg-blue-100/70 dark:bg-blue-900/30"
+                    : ""
+                    }`}
                 >
                   <div className="flex items-center justify-end gap-2">
                     <input
@@ -1077,11 +1426,32 @@ export default function BudgetGridPage() {
                       }
                       onBlur={() => saveLoanAmountCell("jewel_type", "bank", month.key)}
                       disabled={getLoanPaidCell("jewel_type", "bank", month.key).is_paid}
-                      className={`${moneyInputClass} ${
-                        getLoanPaidCell("jewel_type", "bank", month.key).is_paid
-                          ? "cursor-not-allowed border bg-blue-50/90 text-blue-800 opacity-80 dark:bg-blue-950/70 dark:text-blue-200"
-                          : ""
-                      }`}
+                      className={`${moneyInputClass} ${getLoanPaidCell("jewel_type", "bank", month.key).is_paid
+                        ? "cursor-not-allowed border bg-blue-50/90 text-blue-800 opacity-80 dark:bg-blue-950/70 dark:text-blue-200"
+                        : ""
+                        }`}
+                    />
+                    <InlineCommentEditor
+                      commentKey={`loan__jewel_type__bank__${month.key}`}
+                      value={getCommentCell("loan", "jewel_type__bank", month.key).comment}
+                      isOpen={openCommentKey === `loan__jewel_type__bank__${month.key}`}
+                      onToggle={() =>
+                        setOpenCommentKey(
+                          openCommentKey === `loan__jewel_type__bank__${month.key}`
+                            ? null
+                            : `loan__jewel_type__bank__${month.key}`,
+                        )
+                      }
+                      onChange={(value) =>
+                        setCommentMap((prev) => ({
+                          ...prev,
+                          [`loan__jewel_type__bank__${month.key}`]: {
+                            ...getCommentCell("loan", "jewel_type__bank", month.key),
+                            comment: value,
+                          },
+                        }))
+                      }
+                      onSave={() => saveCommentCell("loan", "jewel_type__bank", month.key)}
                     />
                   </div>
                 </td>
@@ -1094,11 +1464,10 @@ export default function BudgetGridPage() {
               {months.map((month, index) => (
                 <td
                   key={`jewel-pawn-${index}`}
-                  className={`border-r px-3 py-1.5 text-right tabular-nums ${
-                    getLoanPaidCell("jewel_type", "pawn", month.key).is_paid
-                      ? "bg-blue-100/70 dark:bg-blue-900/30"
-                      : ""
-                  }`}
+                  className={`border-r px-3 py-1.5 text-right tabular-nums ${getLoanPaidCell("jewel_type", "pawn", month.key).is_paid
+                    ? "bg-blue-100/70 dark:bg-blue-900/30"
+                    : ""
+                    }`}
                 >
                   <div className="flex items-center justify-end gap-2">
                     <input
@@ -1127,11 +1496,32 @@ export default function BudgetGridPage() {
                       }
                       onBlur={() => saveLoanAmountCell("jewel_type", "pawn", month.key)}
                       disabled={getLoanPaidCell("jewel_type", "pawn", month.key).is_paid}
-                      className={`${moneyInputClass} ${
-                        getLoanPaidCell("jewel_type", "pawn", month.key).is_paid
-                          ? "cursor-not-allowed border bg-blue-50/90 text-blue-800 opacity-80 dark:bg-blue-950/70 dark:text-blue-200"
-                          : ""
-                      }`}
+                      className={`${moneyInputClass} ${getLoanPaidCell("jewel_type", "pawn", month.key).is_paid
+                        ? "cursor-not-allowed border bg-blue-50/90 text-blue-800 opacity-80 dark:bg-blue-950/70 dark:text-blue-200"
+                        : ""
+                        }`}
+                    />
+                    <InlineCommentEditor
+                      commentKey={`loan__jewel_type__pawn__${month.key}`}
+                      value={getCommentCell("loan", "jewel_type__pawn", month.key).comment}
+                      isOpen={openCommentKey === `loan__jewel_type__pawn__${month.key}`}
+                      onToggle={() =>
+                        setOpenCommentKey(
+                          openCommentKey === `loan__jewel_type__pawn__${month.key}`
+                            ? null
+                            : `loan__jewel_type__pawn__${month.key}`,
+                        )
+                      }
+                      onChange={(value) =>
+                        setCommentMap((prev) => ({
+                          ...prev,
+                          [`loan__jewel_type__pawn__${month.key}`]: {
+                            ...getCommentCell("loan", "jewel_type__pawn", month.key),
+                            comment: value,
+                          },
+                        }))
+                      }
+                      onSave={() => saveCommentCell("loan", "jewel_type__pawn", month.key)}
                     />
                   </div>
                 </td>
@@ -1148,13 +1538,18 @@ export default function BudgetGridPage() {
               ))}
             </tr>
 
+
+
             <tr className="border-y border-violet-200 bg-violet-100/70 font-semibold text-violet-900 dark:border-violet-900/40 dark:bg-violet-900/25 dark:text-violet-100">
               <td className="sticky left-0 z-10 border-r border-violet-200 bg-violet-100/90 px-3 py-1.5 dark:border-violet-900/40 dark:bg-violet-900/35">
-                Total Monthly Confirmed
+                Total Expenses
               </td>
               {monthlyExpenseTotals.map((expense, index) => (
                 <td key={`confirmed-${index}`} className="border-r border-violet-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-violet-900/40">
-                  {expense + monthlyFixedLoanTotals[index] + monthlyJewelLoanTotals[index]}
+                  {expense +
+                    monthlyFixedLoanTotals[index] +
+                    monthlyJewelLoanTotals[index] +
+                    monthlyInvestmentTotals[index]}
                 </td>
               ))}
             </tr>
@@ -1182,20 +1577,44 @@ export default function BudgetGridPage() {
                       key={`income-${source.id}-${month.key}`}
                       className="border-r px-2 py-1 text-right tabular-nums"
                     >
-                      <input
-                        value={cell.amount}
-                        onChange={(event) =>
-                          setIncomeCellMap((prev) => ({
-                            ...prev,
-                            [`${source.id}__${month.key}`]: {
-                              ...getIncomeCell(source.id, month.key),
-                              amount: event.target.value,
-                            },
-                          }))
-                        }
-                        onBlur={() => saveIncomeCell(source.id, month.key)}
-                        className={moneyInputClass}
-                      />
+                      <div className="flex items-center justify-end gap-2">
+                        <input
+                          value={cell.amount}
+                          onChange={(event) =>
+                            setIncomeCellMap((prev) => ({
+                              ...prev,
+                              [`${source.id}__${month.key}`]: {
+                                ...getIncomeCell(source.id, month.key),
+                                amount: event.target.value,
+                              },
+                            }))
+                          }
+                          onBlur={() => saveIncomeCell(source.id, month.key)}
+                          className={moneyInputClass}
+                        />
+                        <InlineCommentEditor
+                          commentKey={`income__${source.id}__${month.key}`}
+                          value={getCommentCell("income", source.id, month.key).comment}
+                          isOpen={openCommentKey === `income__${source.id}__${month.key}`}
+                          onToggle={() =>
+                            setOpenCommentKey(
+                              openCommentKey === `income__${source.id}__${month.key}`
+                                ? null
+                                : `income__${source.id}__${month.key}`,
+                            )
+                          }
+                          onChange={(value) =>
+                            setCommentMap((prev) => ({
+                              ...prev,
+                              [`income__${source.id}__${month.key}`]: {
+                                ...getCommentCell("income", source.id, month.key),
+                                comment: value,
+                              },
+                            }))
+                          }
+                          onSave={() => saveCommentCell("income", source.id, month.key)}
+                        />
+                      </div>
                     </td>
                   );
                 })}
@@ -1213,13 +1632,14 @@ export default function BudgetGridPage() {
             </tr>
             <tr className="border-y bg-indigo-100/60 font-semibold dark:bg-indigo-900/30">
               <td className="sticky left-0 z-10 border-r bg-indigo-100/60 px-3 py-1.5 dark:bg-indigo-900/30">
-                Remaining Expenses
+                Remaining Exp
               </td>
               {months.map((month, index) => (
                 <td key={`remaining-expenses-${month.key}`} className="border-r px-3 py-1.5 text-right text-base font-semibold tabular-nums">
                   {monthlyRemainingExpenseTemplateTotals[index] +
                     monthlyRemainingFixedLoanTotals[index] +
-                    monthlyRemainingJewelLoanTotals[index]}
+                    monthlyRemainingJewelLoanTotals[index] +
+                    monthlyRemainingInvestmentTotals[index]}
                 </td>
               ))}
             </tr>
@@ -1231,20 +1651,44 @@ export default function BudgetGridPage() {
                 const cell = getCashCell(month.key);
                 return (
                   <td key={`cash-in-hand-${month.key}`} className="border-r px-2 py-1 text-right tabular-nums">
-                    <input
-                      value={cell.amount}
-                      onChange={(event) =>
-                        setCashCellMap((prev) => ({
-                          ...prev,
-                          [month.key]: {
-                            ...getCashCell(month.key),
-                            amount: event.target.value,
-                          },
-                        }))
-                      }
-                      onBlur={() => saveCashCell(month.key)}
-                      className={moneyInputClass}
-                    />
+                    <div className="flex items-center justify-end gap-2">
+                      <input
+                        value={cell.amount}
+                        onChange={(event) =>
+                          setCashCellMap((prev) => ({
+                            ...prev,
+                            [month.key]: {
+                              ...getCashCell(month.key),
+                              amount: event.target.value,
+                            },
+                          }))
+                        }
+                        onBlur={() => saveCashCell(month.key)}
+                        className={moneyInputClass}
+                      />
+                      <InlineCommentEditor
+                        commentKey={`cash__cash_in_hand__${month.key}`}
+                        value={getCommentCell("cash", "cash_in_hand", month.key).comment}
+                        isOpen={openCommentKey === `cash__cash_in_hand__${month.key}`}
+                        onToggle={() =>
+                          setOpenCommentKey(
+                            openCommentKey === `cash__cash_in_hand__${month.key}`
+                              ? null
+                              : `cash__cash_in_hand__${month.key}`,
+                          )
+                        }
+                        onChange={(value) =>
+                          setCommentMap((prev) => ({
+                            ...prev,
+                            [`cash__cash_in_hand__${month.key}`]: {
+                              ...getCommentCell("cash", "cash_in_hand", month.key),
+                              comment: value,
+                            },
+                          }))
+                        }
+                        onSave={() => saveCommentCell("cash", "cash_in_hand", month.key)}
+                      />
+                    </div>
                   </td>
                 );
               })}
@@ -1258,7 +1702,8 @@ export default function BudgetGridPage() {
                   monthlyCashInHandTotals[index] -
                   (monthlyRemainingExpenseTemplateTotals[index] +
                     monthlyRemainingFixedLoanTotals[index] +
-                    monthlyRemainingJewelLoanTotals[index]);
+                    monthlyRemainingJewelLoanTotals[index] +
+                    monthlyRemainingInvestmentTotals[index]);
                 return (
                   <td
                     key={`est-balance-${month.key}`}
@@ -1278,22 +1723,110 @@ export default function BudgetGridPage() {
   );
 }
 
+function InlineCommentEditor({
+  commentKey,
+  value,
+  isOpen,
+  onToggle,
+  onChange,
+  onSave,
+}: {
+  commentKey: string;
+  value: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  onChange: (value: string) => void;
+  onSave: () => void;
+}) {
+  const hasComment = value.trim().length > 0;
+
+  return (
+    <div className="relative group/comment">
+      <Popover
+        open={isOpen}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen !== isOpen) {
+            onToggle();
+          }
+        }}
+      >
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            title="Comment"
+            className={`h-5 rounded border px-1 text-[10px] leading-none ${
+              hasComment
+                ? "border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200"
+                : "border-slate-300 bg-transparent text-slate-500 dark:border-slate-700 dark:text-slate-400"
+            }`}
+          >
+            C
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-56 p-2">
+          <div className="space-y-2">
+            <textarea
+              key={commentKey}
+              value={value}
+              onChange={(event) => onChange(event.target.value)}
+              placeholder="Add comment..."
+              className="min-h-20 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            />
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => {
+                  onSave();
+                  onToggle();
+                }}
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+      {hasComment ? (
+        <div className="pointer-events-none absolute bottom-full right-0 z-50 mb-1 max-w-52 rounded border border-slate-300 bg-white px-2 py-1 text-left text-[10px] text-slate-700 opacity-0 shadow-md transition-opacity group-hover/comment:opacity-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+          {value}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function FragmentGroup({
   groupName,
   rows,
   months,
   getCell,
+  getCommentCell,
+  openCommentKey,
+  setOpenCommentKey,
   onAmountChange,
   onAmountBlur,
   onPaidToggle,
+  onCommentChange,
+  onCommentSave,
 }: {
   groupName: string;
   rows: ExpenseTemplate[];
   months: { label: string; key: string; date: Date }[];
   getCell: (templateId: string, monthKey: string) => CellState;
+  getCommentCell: (
+    kind: "expense" | "loan" | "income" | "cash",
+    ref: string,
+    monthKey: string,
+  ) => CommentCellState;
+  openCommentKey: string | null;
+  setOpenCommentKey: (value: string | null) => void;
   onAmountChange: (templateId: string, monthKey: string, value: string) => void;
   onAmountBlur: (templateId: string, monthKey: string) => void;
   onPaidToggle: (templateId: string, monthKey: string, value: boolean) => void;
+  onCommentChange: (templateId: string, monthKey: string, value: string) => void;
+  onCommentSave: (templateId: string, monthKey: string) => void;
 }) {
   return (
     <>
@@ -1315,11 +1848,10 @@ function FragmentGroup({
             return (
               <td
                 key={`${row.id}-${month.key}`}
-                className={`border-r border-slate-200 px-2 py-1 text-right tabular-nums dark:border-slate-800 ${
-                  cell.is_paid
-                    ? "bg-slate-200/80 dark:bg-slate-800/80"
-                    : "bg-transparent"
-                }`}
+                className={`border-r border-slate-200 px-2 py-1 text-right tabular-nums dark:border-slate-800 ${cell.is_paid
+                  ? "bg-slate-200/80 dark:bg-slate-800/80"
+                  : "bg-transparent"
+                  }`}
               >
                 <div className="flex items-center justify-end gap-2">
                   <input
@@ -1337,11 +1869,24 @@ function FragmentGroup({
                     }
                     onBlur={() => onAmountBlur(row.id, month.key)}
                     disabled={cell.is_paid}
-                    className={`${moneyInputClass} ${
-                      cell.is_paid
-                        ? "cursor-not-allowed border bg-slate-100 text-slate-600 opacity-90 dark:bg-slate-900 dark:text-slate-300"
-                        : ""
-                    }`}
+                    className={`${moneyInputClass} ${cell.is_paid
+                      ? "cursor-not-allowed border bg-slate-100 text-slate-600 opacity-90 dark:bg-slate-900 dark:text-slate-300"
+                      : ""
+                      }`}
+                  />
+                  <InlineCommentEditor
+                    commentKey={`expense__${row.id}__${month.key}`}
+                    value={getCommentCell("expense", row.id, month.key).comment}
+                    isOpen={openCommentKey === `expense__${row.id}__${month.key}`}
+                    onToggle={() =>
+                      setOpenCommentKey(
+                        openCommentKey === `expense__${row.id}__${month.key}`
+                          ? null
+                          : `expense__${row.id}__${month.key}`,
+                      )
+                    }
+                    onChange={(value) => onCommentChange(row.id, month.key, value)}
+                    onSave={() => onCommentSave(row.id, month.key)}
                   />
                 </div>
               </td>
@@ -1352,4 +1897,3 @@ function FragmentGroup({
     </>
   );
 }
-

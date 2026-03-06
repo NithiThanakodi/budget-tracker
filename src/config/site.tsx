@@ -1,5 +1,6 @@
 import {
   CalendarRange,
+  CircleDollarSign,
   FolderTree,
   Gauge,
   Gem,
@@ -57,6 +58,11 @@ export const navigations: Navigation[] = [
     icon: HandCoins,
     name: "Fixed Loans",
     href: "/fixed-loans",
+  },
+  {
+    icon: CircleDollarSign,
+    name: "Ceetu Investments",
+    href: "/investments/ceetu",
   },
   {
     icon: MessagesSquare,

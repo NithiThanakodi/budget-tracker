@@ -80,8 +80,8 @@ CREATE TABLE cash_in_hand_entries (
 -- 10. Loan payment status by month (for fixed loans and jewel loan types)
 CREATE TABLE loan_payment_entries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    loan_kind TEXT NOT NULL CHECK (loan_kind IN ('fixed', 'jewel_type')),
-    loan_ref TEXT NOT NULL, -- fixed_loans.id (uuid as text) OR jewel type ('bank'/'pawn')
+    loan_kind TEXT NOT NULL CHECK (loan_kind IN ('fixed', 'jewel_type', 'investment')),
+    loan_ref TEXT NOT NULL, -- fixed_loans.id, jewel type ('bank'/'pawn'), or ceetu_investments.id
     month_year DATE NOT NULL, -- Always first day of month
     is_paid BOOLEAN NOT NULL DEFAULT false,
     UNIQUE(loan_kind, loan_ref, month_year)
@@ -90,8 +90,8 @@ CREATE TABLE loan_payment_entries (
 -- 11. Loan amount monthly overrides (fixed loans + jewel loan type totals)
 CREATE TABLE loan_monthly_overrides (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    loan_kind TEXT NOT NULL CHECK (loan_kind IN ('fixed', 'jewel_type')),
-    loan_ref TEXT NOT NULL, -- fixed_loans.id (uuid as text) OR jewel type ('bank'/'pawn')
+    loan_kind TEXT NOT NULL CHECK (loan_kind IN ('fixed', 'jewel_type', 'investment')),
+    loan_ref TEXT NOT NULL, -- fixed_loans.id, jewel type ('bank'/'pawn'), or ceetu_investments.id
     month_year DATE NOT NULL, -- Always first day of month
     amount DECIMAL(12,2) NOT NULL DEFAULT 0,
     UNIQUE(loan_kind, loan_ref, month_year)
@@ -105,4 +105,29 @@ CREATE TABLE fixed_loans (
     start_date DATE NOT NULL,
     end_date DATE, -- When this is reached, the loan stops showing in the grid
     is_active BOOLEAN DEFAULT true
+);
+
+-- 12. Ceetu Investments
+CREATE TABLE ceetu_investments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    monthly_emi DECIMAL(12,2) NOT NULL DEFAULT 0,
+    start_date DATE NOT NULL,
+    end_date DATE,
+    total_claim_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    claimed_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    claim_details TEXT,
+    claim_date DATE,
+    is_active BOOLEAN DEFAULT true
+);
+
+-- 13. Grid comments (per cell, per month)
+CREATE TABLE budget_grid_comments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cell_kind TEXT NOT NULL CHECK (cell_kind IN ('expense', 'loan', 'income', 'cash')),
+    cell_ref TEXT NOT NULL, -- template_id, fixed/jewel/investment ref, income_source_id, or cash_in_hand
+    month_year DATE NOT NULL, -- Always first day of month
+    comment TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(cell_kind, cell_ref, month_year)
 );
