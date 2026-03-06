@@ -207,7 +207,7 @@ const controlClass =
   "h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
 
 const moneyInputClass =
-  "h-[1.3rem] w-[96px] rounded-[5px] border bg-transparent px-2 text-right text-sm font-semibold text-black shadow-none tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500";
+  "h-[1.25rem] w-[82px] rounded-[5px] border bg-transparent px-1.5 text-right text-sm font-semibold text-black shadow-none tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500";
 
 const checkboxBaseClass =
   "h-[1.2rem] w-[1.2rem] shrink-0 rounded-[5px] border bg-white/80 shadow-sm";
@@ -1792,14 +1792,14 @@ export default function BudgetGridPage() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="overflow-x-auto overflow-y-visible rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
-          <table className="min-w-[1300px] border-collapse text-sm">
+          <table className="min-w-[1120px] border-collapse text-sm">
           <thead className="sticky top-0 z-40">
             <tr className="border-b bg-slate-100/80 dark:bg-slate-900/80">
-              <th className="sticky left-0 top-0 z-50 min-w-[170px] border-r border-slate-200 bg-slate-100/95 px-3 py-1.5 text-center text-sm font-bold uppercase tracking-wide text-black dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-100">
+              <th className="sticky left-0 top-0 z-50 min-w-[160px] border-r border-slate-200 bg-slate-100/95 px-2 py-1 text-center text-sm font-bold uppercase tracking-wide text-black dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-100">
                 Expense / Section
               </th>
               {months.map((month) => (
-                <th key={month.key} className="sticky top-0 z-40 min-w-[130px] border-r border-slate-200 bg-slate-100/95 px-3 py-1.5 text-center text-base font-extrabold uppercase tracking-wide text-black dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-100">
+                <th key={month.key} className="sticky top-0 z-40 min-w-[108px] border-r border-slate-200 bg-slate-100/95 px-2 py-1 text-center text-sm font-extrabold uppercase tracking-wide text-black dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-100">
                   {month.label}
                 </th>
               ))}
@@ -1987,17 +1987,6 @@ export default function BudgetGridPage() {
                 })}
               </tr>
             ))}
-            <tr className="border-y border-violet-200 bg-violet-100/70 font-semibold text-violet-900 dark:border-violet-900/40 dark:bg-violet-900/25 dark:text-violet-100">
-              <td className="sticky left-0 z-10 border-r border-violet-200 bg-violet-100/90 px-3 py-1.5 dark:border-violet-900/40 dark:bg-violet-900/35">
-                Total Investments
-              </td>
-              {monthlyInvestmentTotals.map((total, index) => (
-                <td key={`investment-total-${index}`} className="border-r border-violet-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-violet-900/40">
-                  {total}
-                </td>
-              ))}
-            </tr>
-
             <tr className="border-y bg-rose-100/60 font-semibold dark:bg-rose-900/30">
               <td className="sticky left-0 z-10 border-r bg-rose-100/60 px-3 py-1.5 dark:bg-rose-900/30">
                 Fixed Loans
@@ -2096,19 +2085,6 @@ export default function BudgetGridPage() {
                 })}
               </tr>
             ))}
-            <tr className="border-y border-rose-200 bg-rose-100/70 font-semibold text-rose-900 dark:border-rose-900/40 dark:bg-rose-900/25 dark:text-rose-100">
-              <td className="sticky left-0 z-10 border-r border-rose-200 bg-rose-100/90 px-3 py-1.5 dark:border-rose-900/40 dark:bg-rose-900/35">
-                Total Fixed Loans
-              </td>
-              {monthlyFixedLoanTotals.map((total, index) => (
-                <td key={`loan-total-${index}`} className="border-r border-rose-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-rose-900/40">
-                  {total}
-                </td>
-              ))}
-            </tr>
-
-
-
             <tr className="border-y bg-sky-100/60 font-semibold dark:bg-sky-900/30">
               <td className="sticky left-0 z-10 border-r bg-sky-100/60 px-3 py-1.5 dark:bg-sky-900/30">
                 Jewel Loans
@@ -2257,13 +2233,15 @@ export default function BudgetGridPage() {
                 </td>
               ))}
             </tr>
-            <tr className="border-y bg-sky-100/60 font-semibold dark:bg-sky-900/30">
-              <td className="sticky left-0 z-10 border-r bg-sky-100/60 px-3 py-1.5 dark:bg-sky-900/30">
-                Total Jewel Loans
+            <tr className="border-y border-fuchsia-200 bg-fuchsia-100/70 font-semibold text-fuchsia-900 dark:border-fuchsia-900/40 dark:bg-fuchsia-900/25 dark:text-fuchsia-100">
+              <td className="sticky left-0 z-10 border-r border-fuchsia-200 bg-fuchsia-100/90 px-3 py-1.5 dark:border-fuchsia-900/40 dark:bg-fuchsia-900/35">
+                Total EMI
               </td>
-              {monthlyJewelLoanTotals.map((total, index) => (
-                <td key={`jewel-total-${index}`} className="border-r px-3 py-1.5 text-right text-base font-semibold tabular-nums">
-                  {total}
+              {months.map((month, index) => (
+                <td key={`emi-total-${month.key}`} className="border-r border-fuchsia-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-fuchsia-900/40">
+                  {monthlyFixedLoanTotals[index] +
+                    monthlyJewelLoanTotals[index] +
+                    monthlyInvestmentTotals[index]}
                 </td>
               ))}
             </tr>
@@ -2350,16 +2328,6 @@ export default function BudgetGridPage() {
                 })}
               </tr>
             ))}
-            <tr className="border-y border-orange-200 bg-orange-100/70 font-semibold text-orange-900 dark:border-orange-900/40 dark:bg-orange-900/25 dark:text-orange-100">
-              <td className="sticky left-0 z-10 border-r border-orange-200 bg-orange-100/90 px-3 py-1.5 dark:border-orange-900/40 dark:bg-orange-900/35">
-                Total Income
-              </td>
-              {months.map((month, index) => (
-                <td key={`income-total-${month.key}`} className="border-r border-orange-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-orange-900/40">
-                  {monthlyIncomeTotals[index]}
-                </td>
-              ))}
-            </tr>
             <tr className="border-y bg-indigo-100/60 font-semibold dark:bg-indigo-900/30">
               <td className="sticky left-0 z-10 border-r bg-indigo-100/60 px-3 py-1.5 dark:bg-indigo-900/30">
                 Remaining Exp
