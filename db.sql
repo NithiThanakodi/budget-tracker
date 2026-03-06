@@ -131,3 +131,37 @@ CREATE TABLE budget_grid_comments (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE(cell_kind, cell_ref, month_year)
 );
+
+-- 14. Budget grid audit logs (immutable change history)
+CREATE TABLE budget_grid_audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    changed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    month_year DATE NOT NULL, -- Always first day of month
+    cell_kind TEXT NOT NULL CHECK (cell_kind IN ('expense', 'loan', 'income', 'cash', 'comment')),
+    cell_ref TEXT NOT NULL,
+    field_name TEXT NOT NULL CHECK (field_name IN ('amount', 'is_paid', 'comment')),
+    old_value TEXT NOT NULL DEFAULT '',
+    new_value TEXT NOT NULL DEFAULT '',
+    changed_by TEXT
+);
+
+-- 15. Budget grid snapshots (manual versions)
+CREATE TABLE budget_grid_snapshots (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    snapshot_name TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_by TEXT,
+    start_month DATE NOT NULL, -- first day month in snapshot scope
+    end_month DATE NOT NULL -- first day month in snapshot scope
+);
+
+-- 16. Budget grid snapshot items (cell values captured per snapshot)
+CREATE TABLE budget_grid_snapshot_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    snapshot_id UUID NOT NULL REFERENCES budget_grid_snapshots(id) ON DELETE CASCADE,
+    month_year DATE NOT NULL, -- first day of month
+    cell_kind TEXT NOT NULL CHECK (cell_kind IN ('expense', 'loan', 'income', 'cash', 'comment')),
+    cell_ref TEXT NOT NULL,
+    field_name TEXT NOT NULL CHECK (field_name IN ('amount', 'is_paid', 'comment')),
+    field_value TEXT NOT NULL DEFAULT ''
+);
