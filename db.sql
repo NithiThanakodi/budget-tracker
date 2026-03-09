@@ -101,6 +101,9 @@ CREATE TABLE loan_monthly_overrides (
 CREATE TABLE fixed_loans (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     loan_name TEXT NOT NULL, -- "HM Loan", "Personal Loan"
+    loan_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    interest_rate DECIMAL(5,2) NOT NULL DEFAULT 0,
+    interest_type TEXT NOT NULL DEFAULT 'simple' CHECK (interest_type IN ('simple', 'compound')),
     monthly_emi DECIMAL(12,2) NOT NULL,
     start_date DATE NOT NULL,
     end_date DATE, -- When this is reached, the loan stops showing in the grid

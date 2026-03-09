@@ -8,6 +8,9 @@ import { supabase } from "../../../utils/supabase";
 type FixedLoan = {
   id: string;
   loan_name: string;
+  loan_amount: number;
+  interest_rate: number;
+  interest_type: "simple" | "compound";
   monthly_emi: number;
   start_date: string;
   end_date: string | null;
@@ -42,6 +45,51 @@ const getRemainingMonths = (endDateValue: string | null) => {
   );
 };
 
+const monthDiffInclusive = (startDate: Date, endDate: Date) =>
+  (endDate.getFullYear() - startDate.getFullYear()) * 12 +
+  (endDate.getMonth() - startDate.getMonth()) +
+  1;
+
+const estimateLoanTotals = (loan: FixedLoan) => {
+  const principal = Number(loan.loan_amount ?? 0);
+  const rate = Number(loan.interest_rate ?? 0) / 100;
+  const startDate = loan.start_date ? new Date(loan.start_date) : null;
+  const endDate = loan.end_date ? new Date(loan.end_date) : null;
+  if (!startDate || !endDate || principal <= 0) {
+    return { principal, interest: 0, total: principal };
+  }
+  const months = monthDiffInclusive(startDate, endDate);
+  if (months <= 0) {
+    return { principal, interest: 0, total: principal };
+  }
+
+  if (loan.interest_type === "simple") {
+    const interest = principal * rate * (months / 12);
+    return { principal, interest, total: principal + interest };
+  }
+
+  const monthlyRate = rate / 12;
+  if (monthlyRate <= 0) {
+    return { principal, interest: 0, total: principal };
+  }
+  let emi = Number(loan.monthly_emi ?? 0);
+  if (emi <= 0) {
+    emi =
+      (principal * monthlyRate * Math.pow(1 + monthlyRate, months)) /
+      (Math.pow(1 + monthlyRate, months) - 1);
+  }
+  let balance = principal;
+  let interest = 0;
+  for (let i = 0; i < months; i++) {
+    const monthInterest = balance * monthlyRate;
+    interest += monthInterest;
+    const monthPrincipal = Math.min(Math.max(emi - monthInterest, 0), balance);
+    balance = Math.max(0, balance - monthPrincipal);
+    if (balance <= 0) break;
+  }
+  return { principal, interest, total: principal + interest };
+};
+
 export default function FixedLoansPage() {
   const [items, setItems] = useState<FixedLoan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +102,9 @@ export default function FixedLoansPage() {
 
     const { data, error: fetchError } = await supabase
       .from("fixed_loans")
-      .select("id, loan_name, monthly_emi, start_date, end_date, is_active")
+      .select(
+        "id, loan_name, loan_amount, interest_rate, interest_type, monthly_emi, start_date, end_date, is_active",
+      )
       .order("end_date", { ascending: true, nullsFirst: false });
 
     if (fetchError) {
@@ -123,11 +173,57 @@ export default function FixedLoansPage() {
         </div>
       ) : null}
 
+      <div className="grid grid-cols-2 gap-3 tablet:grid-cols-4">
+        {(() => {
+          const totals = items.reduce(
+            (acc, loan) => {
+              const split = estimateLoanTotals(loan);
+              acc.principal += split.principal;
+              acc.interest += split.interest;
+              acc.total += split.total;
+              return acc;
+            },
+            { principal: 0, interest: 0, total: 0 },
+          );
+          return (
+            <>
+              <div className="rounded-md border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">Total Loan Amount</p>
+                <p className="mt-1 text-base font-semibold tabular-nums">
+                  {formatMoney(totals.principal)}
+                </p>
+              </div>
+              <div className="rounded-md border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">Total Interest To Be Paid</p>
+                <p className="mt-1 text-base font-semibold tabular-nums text-amber-700 dark:text-amber-300">
+                  {formatMoney(totals.interest)}
+                </p>
+              </div>
+              <div className="rounded-md border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">Total Amount To Be Paid</p>
+                <p className="mt-1 text-base font-semibold tabular-nums">
+                  {formatMoney(totals.total)}
+                </p>
+              </div>
+              <div className="rounded-md border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">No. of Loans</p>
+                <p className="mt-1 text-base font-semibold tabular-nums">
+                  {items.length}
+                </p>
+              </div>
+            </>
+          );
+        })()}
+      </div>
+
       <div className="overflow-x-auto rounded-md border">
-        <table className="w-full min-w-[900px] border-collapse text-sm">
+        <table className="w-full min-w-[1180px] border-collapse text-sm">
           <thead>
             <tr className="border-b bg-muted/40">
               <th className="px-4 py-3 text-left font-medium">Loan Name</th>
+              <th className="px-4 py-3 text-left font-medium">Loan Amount</th>
+              <th className="px-4 py-3 text-left font-medium">Interest</th>
+              <th className="px-4 py-3 text-left font-medium">Interest Type</th>
               <th className="px-4 py-3 text-left font-medium">Monthly EMI</th>
               <th className="px-4 py-3 text-left font-medium">Start Date</th>
               <th className="px-4 py-3 text-left font-medium">End Date</th>
@@ -140,7 +236,7 @@ export default function FixedLoansPage() {
             {loading ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={10}
                   className="px-4 py-6 text-center text-muted-foreground"
                 >
                   Loading fixed loans...
@@ -149,7 +245,7 @@ export default function FixedLoansPage() {
             ) : items.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={10}
                   className="px-4 py-6 text-center text-muted-foreground"
                 >
                   No fixed loans found.
@@ -177,6 +273,15 @@ export default function FixedLoansPage() {
                 return (
                 <tr key={item.id} className={`border-b last:border-b-0 ${rowColor}`}>
                   <td className="px-4 py-3">{item.loan_name}</td>
+                  <td className="px-4 py-3 font-semibold text-blue-700 dark:text-blue-300">
+                    {formatMoney(Number(item.loan_amount ?? 0))}
+                  </td>
+                  <td className="px-4 py-3">
+                    {Number(item.interest_rate ?? 0)}%
+                  </td>
+                  <td className="px-4 py-3 uppercase">
+                    {item.interest_type ?? "simple"}
+                  </td>
                   <td className="px-4 py-3 font-semibold text-indigo-700 dark:text-indigo-300">
                     {formatMoney(Number(item.monthly_emi ?? 0))}
                   </td>

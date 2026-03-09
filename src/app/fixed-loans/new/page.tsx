@@ -10,6 +10,9 @@ import { supabase } from "../../../../utils/supabase";
 
 const defaultValues: FixedLoanFormValues = {
   loan_name: "",
+  loan_amount: "",
+  interest_rate: "",
+  interest_type: "simple",
   monthly_emi: "",
   start_date: "",
   end_date: "",
@@ -40,6 +43,9 @@ export default function NewFixedLoanPage() {
     const { error: insertError } = await supabase.from("fixed_loans").insert([
       {
         loan_name: cleanLoanName,
+        loan_amount: Number(values.loan_amount) || 0,
+        interest_rate: Number(values.interest_rate) || 0,
+        interest_type: values.interest_type,
         monthly_emi: Number(values.monthly_emi) || 0,
         start_date: values.start_date,
         end_date: values.end_date || null,

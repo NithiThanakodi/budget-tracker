@@ -10,6 +10,9 @@ import { supabase } from "../../../../../utils/supabase";
 
 type FixedLoanRow = {
   loan_name: string;
+  loan_amount: number;
+  interest_rate: number;
+  interest_type: "simple" | "compound";
   monthly_emi: number;
   start_date: string;
   end_date: string | null;
@@ -33,7 +36,9 @@ export default function EditFixedLoanPage() {
 
       const { data, error: fetchError } = await supabase
         .from("fixed_loans")
-        .select("loan_name, monthly_emi, start_date, end_date, is_active")
+        .select(
+          "loan_name, loan_amount, interest_rate, interest_type, monthly_emi, start_date, end_date, is_active",
+        )
         .eq("id", id)
         .single();
 
@@ -46,6 +51,9 @@ export default function EditFixedLoanPage() {
       const row = data as FixedLoanRow;
       setValues({
         loan_name: row.loan_name ?? "",
+        loan_amount: String(row.loan_amount ?? 0),
+        interest_rate: String(row.interest_rate ?? 0),
+        interest_type: row.interest_type ?? "simple",
         monthly_emi: String(row.monthly_emi ?? 0),
         start_date: row.start_date ?? "",
         end_date: row.end_date ?? "",
@@ -80,6 +88,9 @@ export default function EditFixedLoanPage() {
       .from("fixed_loans")
       .update({
         loan_name: cleanLoanName,
+        loan_amount: Number(values.loan_amount) || 0,
+        interest_rate: Number(values.interest_rate) || 0,
+        interest_type: values.interest_type,
         monthly_emi: Number(values.monthly_emi) || 0,
         start_date: values.start_date,
         end_date: values.end_date || null,
