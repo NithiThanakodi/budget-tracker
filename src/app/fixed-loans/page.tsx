@@ -33,14 +33,19 @@ const formatMoney = (value: number) =>
 const isInSameMonth = (d1: Date, d2: Date) =>
   d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth();
 
-const getRemainingMonths = (endDateValue: string | null) => {
-  if (!endDateValue) return null;
+const getRemainingMonths = (startDateValue: string | null, endDateValue: string | null) => {
+  if (!endDateValue || !startDateValue) return null;
+  var startDate = new Date(startDateValue);
   const today = new Date();
+  if (startDate <= today) {
+    startDate = today;
+  }
+
   const endDate = new Date(endDateValue);
   return Math.max(
     0,
-    (endDate.getFullYear() - today.getFullYear()) * 12 +
-    (endDate.getMonth() - today.getMonth()) +
+    (endDate.getFullYear() - startDate.getFullYear()) * 12 +
+    (endDate.getMonth() - startDate.getMonth()) +
     1,
   );
 };
@@ -260,7 +265,7 @@ export default function FixedLoansPage() {
                   1,
                 );
                 const endDate = item.end_date ? new Date(item.end_date) : null;
-                const remainingMonths = getRemainingMonths(item.end_date);
+                const remainingMonths = getRemainingMonths(item.start_date, item.end_date);
                 const isOverdue = !!endDate && endDate < today && !isInSameMonth(endDate, today);
                 const isCurrentMonth = !!endDate && isInSameMonth(endDate, today);
                 const isNextMonth = !!endDate && isInSameMonth(endDate, nextMonth);
