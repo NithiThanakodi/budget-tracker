@@ -10,6 +10,7 @@ import { supabase } from "../../../../utils/supabase";
 
 const defaultValues: JewelLoanFormValues = {
   lender_name: "",
+  jeweler_name: "",
   loan_type: "bank",
   item_details: "",
   grams: "",
@@ -39,6 +40,7 @@ export default function NewJewelLoanPage() {
     const { error: insertError } = await supabase.from("jewel_loans").insert([
       {
         lender_name: cleanLenderName,
+        jeweler_name: values.jeweler_name.trim() || null,
         loan_type: values.loan_type,
         item_details: values.item_details.trim() || null,
         grams: values.grams ? Number(values.grams) : null,

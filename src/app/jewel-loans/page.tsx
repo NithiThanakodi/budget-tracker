@@ -8,6 +8,7 @@ import { supabase } from "../../../utils/supabase";
 type JewelLoan = {
   id: string;
   lender_name: string;
+  jeweler_name: string | null;
   loan_type: "bank" | "pawn";
   item_details: string | null;
   grams: number | null;
@@ -25,6 +26,15 @@ const formatMoney = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+const GRAMS_PER_POUN = 8;
+
+const formatPounAndGrams = (totalGrams: number) => {
+  const safeTotal = Number.isFinite(totalGrams) ? Math.max(totalGrams, 0) : 0;
+  const poun = Math.floor(safeTotal / GRAMS_PER_POUN);
+  const grams = safeTotal - poun * GRAMS_PER_POUN;
+  return `${poun} poun ${grams.toFixed(2)} g`;
+};
+
 const isInSameMonth = (d1: Date, d2: Date) =>
   d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth();
 
@@ -39,6 +49,14 @@ export default function JewelLoansPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "bank" | "pawn">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "recovered">(
+    "all",
+  );
+  const [dueFilter, setDueFilter] = useState<
+    "all" | "overdue" | "current" | "next" | "no_due"
+  >("all");
 
   const loadLoans = async () => {
     setLoading(true);
@@ -47,7 +65,7 @@ export default function JewelLoansPage() {
     const { data, error: fetchError } = await supabase
       .from("jewel_loans")
       .select(
-        "id, lender_name, loan_type, item_details, grams, loan_amount, interest_rate, loan_date, due_date, status",
+        "id, lender_name, jeweler_name, loan_type, item_details, grams, loan_amount, interest_rate, loan_date, due_date, status",
       )
       .order("due_date", { ascending: true, nullsFirst: false });
 
@@ -64,6 +82,54 @@ export default function JewelLoansPage() {
   useEffect(() => {
     loadLoans();
   }, []);
+
+  const today = new Date();
+  const startOfToday = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  );
+  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+
+  const filteredItems = items.filter((item) => {
+    const keyword = search.trim().toLowerCase();
+    const matchesSearch =
+      !keyword ||
+      item.lender_name.toLowerCase().includes(keyword) ||
+      (item.jeweler_name ?? "").toLowerCase().includes(keyword);
+    const matchesType = typeFilter === "all" || item.loan_type === typeFilter;
+    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+
+    const dueDate = item.due_date ? new Date(item.due_date) : null;
+    const isCurrentMonth = !!dueDate && isInSameMonth(dueDate, today);
+    const isNextMonth = !!dueDate && isInSameMonth(dueDate, nextMonth);
+    const isOverdue = !!dueDate && dueDate < startOfToday;
+    const isNoDue = !dueDate;
+
+    const matchesDue =
+      dueFilter === "all" ||
+      (dueFilter === "current" && isCurrentMonth) ||
+      (dueFilter === "next" && isNextMonth) ||
+      (dueFilter === "overdue" && isOverdue) ||
+      (dueFilter === "no_due" && isNoDue);
+
+    return matchesSearch && matchesType && matchesStatus && matchesDue;
+  });
+
+  const totals = filteredItems.reduce(
+    (acc, item) => {
+      const principal = Number(item.loan_amount ?? 0);
+      const interestRate = Number(item.interest_rate ?? 0);
+      const grams = Number(item.grams ?? 0);
+      const interestAmount = (principal * interestRate) / 100;
+
+      acc.totalAmount += principal;
+      acc.totalInterest += interestAmount;
+      acc.totalGrams += grams;
+      return acc;
+    },
+    { totalAmount: 0, totalInterest: 0, totalGrams: 0 },
+  );
 
   const onDelete = async (id: string) => {
     const shouldDelete = window.confirm(
@@ -111,11 +177,79 @@ export default function JewelLoansPage() {
         </div>
       ) : null}
 
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="rounded-md border bg-muted/10 p-3">
+          <p className="text-xs text-muted-foreground">Total Grams</p>
+          <p className="text-lg font-semibold text-blue-700 dark:text-blue-300">
+            {formatPounAndGrams(totals.totalGrams)}
+          </p>
+        </div>
+        <div className="rounded-md border bg-muted/10 p-3">
+          <p className="text-xs text-muted-foreground">Total Interest</p>
+          <p className="text-lg font-semibold text-amber-700 dark:text-amber-300">
+            {formatMoney(totals.totalInterest)}
+          </p>
+        </div>
+        <div className="rounded-md border bg-muted/10 p-3">
+          <p className="text-xs text-muted-foreground">Total Amount</p>
+          <p className="text-lg font-semibold text-emerald-700 dark:text-emerald-300">
+            {formatMoney(totals.totalAmount)}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 rounded-md border p-3 md:grid-cols-4">
+        <input
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          placeholder="Search lender/jeweler..."
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        <select
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          value={typeFilter}
+          onChange={(event) =>
+            setTypeFilter(event.target.value as "all" | "bank" | "pawn")
+          }
+        >
+          <option value="all">All Types</option>
+          <option value="bank">Bank</option>
+          <option value="pawn">Pawn</option>
+        </select>
+        <select
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          value={statusFilter}
+          onChange={(event) =>
+            setStatusFilter(event.target.value as "all" | "active" | "recovered")
+          }
+        >
+          <option value="all">All Status</option>
+          <option value="active">Active</option>
+          <option value="recovered">Recovered</option>
+        </select>
+        <select
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          value={dueFilter}
+          onChange={(event) =>
+            setDueFilter(
+              event.target.value as "all" | "overdue" | "current" | "next" | "no_due",
+            )
+          }
+        >
+          <option value="all">All Due</option>
+          <option value="overdue">Overdue</option>
+          <option value="current">Current Month</option>
+          <option value="next">Next Month</option>
+          <option value="no_due">No Due Date</option>
+        </select>
+      </div>
+
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full min-w-[1320px] border-collapse text-sm">
           <thead>
             <tr className="border-b bg-muted/40">
               <th className="px-4 py-3 text-left font-medium">Lender</th>
+              <th className="px-4 py-3 text-left font-medium">Jeweler</th>
               <th className="px-4 py-3 text-left font-medium">Type</th>
               <th className="px-4 py-3 text-left font-medium">Grams</th>
               <th className="px-4 py-3 text-left font-medium">Loan Amount</th>
@@ -132,44 +266,43 @@ export default function JewelLoansPage() {
             {loading ? (
               <tr>
                 <td
-                  colSpan={11}
+                  colSpan={12}
                   className="px-4 py-6 text-center text-muted-foreground"
                 >
                   Loading jewel loans...
                 </td>
               </tr>
-            ) : items.length === 0 ? (
+            ) : filteredItems.length === 0 ? (
               <tr>
                 <td
-                  colSpan={11}
+                  colSpan={12}
                   className="px-4 py-6 text-center text-muted-foreground"
                 >
-                  No jewel loans found.
+                  No jewel loans found for current filters.
                 </td>
               </tr>
             ) : (
-              items.map((item) => {
+              filteredItems.map((item) => {
                 const principal = Number(item.loan_amount ?? 0);
                 const interestRate = Number(item.interest_rate ?? 0);
                 const interestAmount = (principal * interestRate) / 100;
                 const totalWithInterest = principal + interestAmount;
 
                 const dueDate = item.due_date ? new Date(item.due_date) : null;
-                const today = new Date();
-                const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
                 const isCurrentMonth =
                   !!dueDate && isInSameMonth(dueDate, today);
                 const isNextMonth =
                   !!dueDate && isInSameMonth(dueDate, nextMonth);
-                const rowColor = isCurrentMonth
-                  ? "bg-rose-50 dark:bg-rose-950/20"
+                const dueDateClass = isCurrentMonth
+                  ? "text-rose-600 dark:text-rose-400"
                   : isNextMonth
-                    ? "bg-amber-50 dark:bg-amber-950/20"
-                    : "bg-transparent";
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-foreground";
 
                 return (
-                  <tr key={item.id} className={`border-b last:border-b-0 ${rowColor}`}>
+                  <tr key={item.id} className="border-b last:border-b-0">
                     <td className="px-4 py-3 font-medium">{item.lender_name}</td>
+                    <td className="px-4 py-3">{item.jeweler_name ?? "-"}</td>
                     <td className="px-4 py-3">{item.loan_type}</td>
                     <td className="px-4 py-3">{item.grams ?? "-"}</td>
                     <td className="px-4 py-3 font-semibold text-blue-700 dark:text-blue-300">
@@ -183,19 +316,7 @@ export default function JewelLoansPage() {
                       {formatMoney(totalWithInterest)}
                     </td>
                     <td className="px-4 py-3">{formatDate(item.loan_date)}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          isCurrentMonth
-                            ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300"
-                            : isNextMonth
-                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                              : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                        }`}
-                      >
-                        {formatDate(item.due_date)}
-                      </span>
-                    </td>
+                    <td className={`px-4 py-3 ${dueDateClass}`}>{formatDate(item.due_date)}</td>
                     <td className="px-4 py-3">{item.status}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">

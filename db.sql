@@ -168,3 +168,26 @@ CREATE TABLE budget_grid_snapshot_items (
     field_name TEXT NOT NULL CHECK (field_name IN ('amount', 'is_paid', 'comment')),
     field_value TEXT NOT NULL DEFAULT ''
 );
+
+-- 17. Jewel loan enhancements
+ALTER TABLE jewel_loans
+ADD COLUMN IF NOT EXISTS jeweler_name TEXT;
+
+-- 18. Jewel loan renewals history (immutable)
+CREATE TABLE IF NOT EXISTS jewel_loan_renewals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    jewel_loan_id UUID NOT NULL REFERENCES jewel_loans(id) ON DELETE CASCADE,
+    renewed_on DATE NOT NULL,
+    previous_loan_date DATE,
+    previous_due_date DATE,
+    previous_grams DECIMAL(10,2),
+    previous_loan_amount DECIMAL(12,2),
+    previous_interest_rate DECIMAL(5,2),
+    renewed_loan_date DATE,
+    renewed_due_date DATE,
+    renewed_grams DECIMAL(10,2),
+    renewed_loan_amount DECIMAL(12,2),
+    interest_paid DECIMAL(12,2) NOT NULL DEFAULT 0,
+    comment TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 
 export type JewelLoanFormValues = {
   lender_name: string;
+  jeweler_name: string;
   loan_type: "bank" | "pawn";
   item_details: string;
   grams: string;
@@ -22,6 +23,7 @@ export function JewelLoanForm({
   values,
   error,
   submitting,
+  hideActions,
   onChange,
   onSubmit,
   onCancel,
@@ -30,6 +32,7 @@ export function JewelLoanForm({
   values: JewelLoanFormValues;
   error: string | null;
   submitting: boolean;
+  hideActions?: boolean;
   onChange: (nextValues: JewelLoanFormValues) => void;
   onSubmit: () => void;
   onCancel: () => void;
@@ -71,6 +74,21 @@ export function JewelLoanForm({
             }
             placeholder="Indian Bank"
             required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="jeweler-name" className="text-sm font-medium">
+            Jeweler Name
+          </label>
+          <input
+            id="jeweler-name"
+            className={inputClassName}
+            value={values.jeweler_name}
+            onChange={(event) =>
+              onChange({ ...values, jeweler_name: event.target.value })
+            }
+            placeholder="ABC Jewellers"
           />
         </div>
 
@@ -212,18 +230,20 @@ export function JewelLoanForm({
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <Button type="submit" disabled={submitting}>
-            {submitting
-              ? "Saving..."
-              : mode === "create"
-                ? "Create Loan"
-                : "Save Changes"}
-          </Button>
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-        </div>
+        {hideActions ? null : (
+          <div className="flex gap-2">
+            <Button type="submit" disabled={submitting}>
+              {submitting
+                ? "Saving..."
+                : mode === "create"
+                  ? "Create Loan"
+                  : "Save Changes"}
+            </Button>
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+          </div>
+        )}
       </form>
     </section>
   );
