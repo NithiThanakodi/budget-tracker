@@ -40,8 +40,8 @@ const getRemainingMonths = (endDateValue: string | null) => {
   return Math.max(
     0,
     (endDate.getFullYear() - today.getFullYear()) * 12 +
-      (endDate.getMonth() - today.getMonth()) +
-      1,
+    (endDate.getMonth() - today.getMonth()) +
+    1,
   );
 };
 
@@ -271,57 +271,53 @@ export default function FixedLoansPage() {
                     : "bg-transparent";
 
                 return (
-                <tr key={item.id} className={`border-b last:border-b-0 ${rowColor}`}>
-                  <td className="px-4 py-3">{item.loan_name}</td>
-                  <td className="px-4 py-3 font-semibold text-blue-700 dark:text-blue-300">
-                    {formatMoney(Number(item.loan_amount ?? 0))}
-                  </td>
-                  <td className="px-4 py-3">
-                    {Number(item.interest_rate ?? 0)}%
-                  </td>
-                  <td className="px-4 py-3 uppercase">
-                    {item.interest_type ?? "simple"}
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-indigo-700 dark:text-indigo-300">
-                    {formatMoney(Number(item.monthly_emi ?? 0))}
-                  </td>
-                  <td className="px-4 py-3">{formatDate(item.start_date)}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        isOverdue || isCurrentMonth
+                  <tr key={item.id} className={`border-b last:border-b-0 ${rowColor}`} onClick={() => window.location.href = `/fixed-loans/${item.id}/edit`} style={{ cursor: "pointer" }}>
+                    <td className="px-4 py-3 font-bold ">{item.loan_name}</td>
+                    <td className="px-4 py-3 font-semibold text-blue-700 dark:text-blue-300">
+                      {formatMoney(Number(item.loan_amount ?? 0))}
+                    </td>
+                    <td className="px-4 py-3">
+                      {Number(item.interest_rate ?? 0)}%
+                    </td>
+                    <td className="px-4 py-3 uppercase">
+                      {item.interest_type ?? "simple"}
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-indigo-700 dark:text-indigo-300">
+                      {formatMoney(Number(item.monthly_emi ?? 0))}
+                    </td>
+                    <td className="px-4 py-3">{formatDate(item.start_date)}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2 py-0.5  font-semibold ${isOverdue || isCurrentMonth
                           ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300"
                           : isNextMonth
                             ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
                             : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                      }`}
-                    >
-                      {formatDate(item.end_date)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-medium">
-                    {remainingMonths === null ? "-" : `${remainingMonths} month(s)`}
-                  </td>
-                  <td className="px-4 py-3">
-                    {item.is_active ? "Active" : "Inactive"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/fixed-loans/${item.id}/edit`}>Edit</Link>
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        disabled={deletingId === item.id}
-                        onClick={() => onDelete(item.id)}
+                          }`}
                       >
-                        {deletingId === item.id ? "Deleting..." : "Delete"}
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              );
+                        {formatDate(item.end_date)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-medium">
+                      {remainingMonths === null ? "-" : `${remainingMonths} month(s)`}
+                    </td>
+                    <td className="px-4 py-3">
+                      {item.is_active ? "Active" : "Inactive"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={deletingId === item.id}
+                          onClick={() => onDelete(item.id)}
+                        >
+                          {deletingId === item.id ? "Deleting..." : "Delete"}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
               })
             )}
           </tbody>

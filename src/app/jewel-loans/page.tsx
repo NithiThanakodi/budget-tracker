@@ -287,21 +287,26 @@ export default function JewelLoansPage() {
                 const interestRate = Number(item.interest_rate ?? 0);
                 const interestAmount = (principal * interestRate) / 100;
                 const totalWithInterest = principal + interestAmount;
-
                 const dueDate = item.due_date ? new Date(item.due_date) : null;
                 const isCurrentMonth =
                   !!dueDate && isInSameMonth(dueDate, today);
                 const isNextMonth =
                   !!dueDate && isInSameMonth(dueDate, nextMonth);
+                const isOverdue = !!dueDate && dueDate < today && !isInSameMonth(dueDate, today);
                 const dueDateClass = isCurrentMonth
-                  ? "text-rose-600 dark:text-rose-400"
+                  ? "text-rose-600 dark:text-rose-400 font-semibold"
                   : isNextMonth
-                    ? "text-amber-600 dark:text-amber-400"
-                    : "text-foreground";
+                    ? "text-amber-600 dark:text-amber-400 font-semibold"
+                    : "text-foreground ";
+                const rowColor = isOverdue || isCurrentMonth
+                  ? "bg-rose-50 dark:bg-rose-950/20"
+                  : isNextMonth
+                    ? "bg-amber-50 dark:bg-amber-950/20"
+                    : "bg-transparent";
 
                 return (
-                  <tr key={item.id} className="border-b last:border-b-0">
-                    <td className="px-4 py-3 font-medium">{item.lender_name}</td>
+                  <tr key={item.id} className={`border-b last:border-b-0 ${rowColor}`} onClick={() => window.location.href = `/jewel-loans/${item.id}/edit`} style={{ cursor: "pointer" }}>
+                    <td className="px-4 py-3 font-large font-bold "> {item.lender_name}</td>
                     <td className="px-4 py-3">{item.jeweler_name ?? "-"}</td>
                     <td className="px-4 py-3">{item.loan_type}</td>
                     <td className="px-4 py-3">{item.grams ?? "-"}</td>
@@ -320,9 +325,6 @@ export default function JewelLoansPage() {
                     <td className="px-4 py-3">{item.status}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href={`/jewel-loans/${item.id}/edit`}>Edit</Link>
-                        </Button>
                         <Button
                           variant="destructive"
                           size="sm"
@@ -340,6 +342,6 @@ export default function JewelLoansPage() {
           </tbody>
         </table>
       </div>
-    </section>
+    </section >
   );
 }

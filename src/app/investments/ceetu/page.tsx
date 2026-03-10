@@ -164,7 +164,7 @@ export default function CeetuInvestmentsPage() {
                 const remainingMonths = getRemainingMonths(item.end_date);
 
                 return (
-                  <tr key={item.id} className="border-b last:border-b-0">
+                  <tr key={item.id} className="border-b last:border-b-0" onClick={() => window.location.href = `/investments/ceetu/${item.id}/edit`} style={{ cursor: "pointer" }}>
                     <td className="px-4 py-3 font-medium">{item.name}</td>
                     <td className="px-4 py-3">{formatMoney(Number(item.monthly_emi ?? 0))}</td>
                     <td className="px-4 py-3">{formatDate(item.start_date)}</td>
@@ -187,9 +187,6 @@ export default function CeetuInvestmentsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href={`/investments/ceetu/${item.id}/edit`}>Edit</Link>
-                        </Button>
                         <Button
                           variant="destructive"
                           size="sm"

@@ -207,7 +207,7 @@ const controlClass =
   "h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
 
 const moneyInputClass =
-  "h-[1.25rem] w-[82px] rounded-[5px] border bg-transparent px-1.5 text-right text-sm font-semibold text-black shadow-none tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500";
+  "h-[1.25rem] w-[82px] rounded-[5px] border bg-transparent px-1.5 text-right text-sm font-semibold text-black shadow-none tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 dark:text-slate-100";
 
 const checkboxBaseClass =
   "h-[1.2rem] w-[1.2rem] shrink-0 rounded-[5px] border bg-white/80 shadow-sm";
@@ -353,28 +353,28 @@ export default function BudgetGridPage() {
           .select("loan_type, loan_amount, interest_rate, due_date")
           .order("loan_type", { ascending: true })
           .order("due_date", { ascending: true }),
-      supabase
-        .from("ceetu_investments")
-        .select("id, name, monthly_emi, start_date, end_date, is_active")
-        .order("name", { ascending: true }),
-      supabase
-        .from("budget_grid_comments")
-        .select("id, cell_kind, cell_ref, month_year, comment")
-        .gte("month_year", startDate)
-        .lte("month_year", endDate),
-      supabase
-        .from("budget_grid_audit_logs")
-        .select(
-          "id, changed_at, month_year, cell_kind, cell_ref, field_name, old_value, new_value, changed_by",
-        )
-        .order("changed_at", { ascending: false })
-        .limit(200),
-      supabase
-        .from("budget_grid_snapshots")
-        .select("id, snapshot_name, created_at, created_by, start_month, end_month")
-        .order("created_at", { ascending: false })
-        .limit(30),
-    ]);
+        supabase
+          .from("ceetu_investments")
+          .select("id, name, monthly_emi, start_date, end_date, is_active")
+          .order("name", { ascending: true }),
+        supabase
+          .from("budget_grid_comments")
+          .select("id, cell_kind, cell_ref, month_year, comment")
+          .gte("month_year", startDate)
+          .lte("month_year", endDate),
+        supabase
+          .from("budget_grid_audit_logs")
+          .select(
+            "id, changed_at, month_year, cell_kind, cell_ref, field_name, old_value, new_value, changed_by",
+          )
+          .order("changed_at", { ascending: false })
+          .limit(200),
+        supabase
+          .from("budget_grid_snapshots")
+          .select("id, snapshot_name, created_at, created_by, start_month, end_month")
+          .order("created_at", { ascending: false })
+          .limit(30),
+      ]);
 
     if (templatesRes.error) {
       setError(templatesRes.error.message);
@@ -1793,628 +1793,628 @@ export default function BudgetGridPage() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="overflow-x-auto overflow-y-visible rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
           <table className="min-w-[1120px] border-collapse text-sm">
-          <thead className="sticky top-0 z-40">
-            <tr className="border-b bg-slate-100/80 dark:bg-slate-900/80">
-              <th className="sticky left-0 top-0 z-50 min-w-[160px] border-r border-slate-200 bg-slate-100/95 px-2 py-1 text-center text-sm font-bold uppercase tracking-wide text-black dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-100">
-                Expense / Section
-              </th>
-              {months.map((month) => (
-                <th key={month.key} className="sticky top-0 z-40 min-w-[108px] border-r border-slate-200 bg-slate-100/95 px-2 py-1 text-center text-sm font-extrabold uppercase tracking-wide text-black dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-100">
-                  {month.label}
+            <thead className="sticky top-0 z-40">
+              <tr className="border-b bg-slate-100/80 dark:bg-slate-900/80">
+                <th className="sticky left-0 top-0 z-50 min-w-[160px] border-r border-slate-200 bg-slate-100/95 px-2 py-1 text-center text-sm font-bold uppercase tracking-wide text-black dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-100">
+                  Expense / Section
                 </th>
+                {months.map((month) => (
+                  <th key={month.key} className="sticky top-0 z-40 min-w-[108px] border-r border-slate-200 bg-slate-100/95 px-2 py-1 text-center text-sm font-extrabold uppercase tracking-wide text-black dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-100">
+                    {month.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(groupedTemplates).map(([groupName, rows]) => (
+                <FragmentGroup
+                  key={groupName}
+                  groupName={groupName}
+                  rows={rows}
+                  months={months}
+                  getCell={getCell}
+                  getCommentCell={getCommentCell}
+                  openCommentKey={openCommentKey}
+                  setOpenCommentKey={setOpenCommentKey}
+                  onAmountChange={(templateId, monthKey, value) =>
+                    setCellMap((prev) => ({
+                      ...prev,
+                      [`${templateId}__${monthKey}`]: {
+                        ...getCell(templateId, monthKey),
+                        amount: value,
+                      },
+                    }))
+                  }
+                  onAmountBlur={(templateId, monthKey) =>
+                    saveCell(templateId, monthKey, {
+                      amount: getCell(templateId, monthKey).amount,
+                    })
+                  }
+                  onPaidToggle={(templateId, monthKey, value) =>
+                    saveCell(templateId, monthKey, { is_paid: value })
+                  }
+                  onCommentChange={(templateId, monthKey, value) =>
+                    setCommentMap((prev) => ({
+                      ...prev,
+                      [`expense__${templateId}__${monthKey}`]: {
+                        ...getCommentCell("expense", templateId, monthKey),
+                        comment: value,
+                      },
+                    }))
+                  }
+                  onCommentSave={(templateId, monthKey) =>
+                    saveCommentCell("expense", templateId, monthKey)
+                  }
+                />
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(groupedTemplates).map(([groupName, rows]) => (
-              <FragmentGroup
-                key={groupName}
-                groupName={groupName}
-                rows={rows}
-                months={months}
-                getCell={getCell}
-                getCommentCell={getCommentCell}
-                openCommentKey={openCommentKey}
-                setOpenCommentKey={setOpenCommentKey}
-                onAmountChange={(templateId, monthKey, value) =>
-                  setCellMap((prev) => ({
-                    ...prev,
-                    [`${templateId}__${monthKey}`]: {
-                      ...getCell(templateId, monthKey),
-                      amount: value,
-                    },
-                  }))
-                }
-                onAmountBlur={(templateId, monthKey) =>
-                  saveCell(templateId, monthKey, {
-                    amount: getCell(templateId, monthKey).amount,
-                  })
-                }
-                onPaidToggle={(templateId, monthKey, value) =>
-                  saveCell(templateId, monthKey, { is_paid: value })
-                }
-                onCommentChange={(templateId, monthKey, value) =>
-                  setCommentMap((prev) => ({
-                    ...prev,
-                    [`expense__${templateId}__${monthKey}`]: {
-                      ...getCommentCell("expense", templateId, monthKey),
-                      comment: value,
-                    },
-                  }))
-                }
-                onCommentSave={(templateId, monthKey) =>
-                  saveCommentCell("expense", templateId, monthKey)
-                }
-              />
-            ))}
 
-            <tr className="border-y border-amber-200 bg-amber-100/80 font-semibold text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-100">
-              <td className="sticky left-0 z-10 border-r border-amber-200 bg-amber-100/95 px-3 py-1.5 dark:border-amber-900/40 dark:bg-amber-900/30">
-                Total Expense
-              </td>
-              {monthlyExpenseTotals.map((total, index) => (
-                <td key={`expense-total-${index}`} className="border-r border-amber-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-amber-900/40">
-                  {total}
+              <tr className="border-y border-amber-200 bg-amber-100/80 font-semibold text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-100">
+                <td className="sticky left-0 z-10 border-r border-amber-200 bg-amber-100/95 px-3 py-1.5 dark:border-amber-900/40 dark:bg-amber-900/30">
+                  Total Expense
                 </td>
-              ))}
-            </tr>
+                {monthlyExpenseTotals.map((total, index) => (
+                  <td key={`expense-total-${index}`} className="border-r border-amber-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-amber-900/40">
+                    {total}
+                  </td>
+                ))}
+              </tr>
 
-            <tr className="border-y bg-violet-100/60 font-semibold dark:bg-violet-900/30">
-              <td className="sticky left-0 z-10 border-r bg-violet-100/60 px-3 py-1.5 dark:bg-violet-900/30">
-                Ceetu Investments
-              </td>
-              {months.map((month) => (
-                <td key={`investment-header-${month.key}`} className="border-r px-3 py-1.5" />
-              ))}
-            </tr>
-            {ceetuInvestments.map((investment) => (
-              <tr key={investment.id} className="border-t bg-violet-50/40 dark:bg-violet-950/20">
-                <td className="sticky left-0 z-10 border-r bg-violet-50/40 px-3 py-1.5 dark:bg-violet-950/20">
-                  {investment.name}
-                  {!investment.is_active ? " (inactive)" : ""}
+              <tr className="border-y bg-violet-100/60 font-semibold dark:bg-violet-900/30">
+                <td className="sticky left-0 z-10 border-r bg-violet-100/60 px-3 py-1.5 dark:bg-violet-900/30">
+                  Ceetu Investments
                 </td>
-                {months.map((month) => {
-                  const start = new Date(investment.start_date);
-                  const end = investment.end_date ? new Date(investment.end_date) : null;
-                  const inRange =
-                    month.date >= new Date(start.getFullYear(), start.getMonth(), 1) &&
-                    (!end || month.date <= new Date(end.getFullYear(), end.getMonth(), 1));
-                  const investmentPaid = getLoanPaidCell(
-                    "investment",
-                    investment.id,
-                    month.key,
-                  ).is_paid;
-                  const investmentAmountCell = getLoanAmountCell(
-                    "investment",
-                    investment.id,
-                    month.key,
-                  );
-                  return (
-                    <td
-                      key={`investment-${investment.id}-${month.key}`}
-                      className={`border-r px-3 py-1.5 text-right tabular-nums ${inRange && investmentPaid
-                        ? "bg-violet-100/70 dark:bg-violet-900/30"
-                        : ""
-                        }`}
-                    >
-                      {inRange ? (
-                        <div className="flex items-center justify-end gap-2">
-                          <input
-                            type="checkbox"
-                            className={checkboxInvestmentClass}
-                            checked={investmentPaid}
-                            onChange={(event) =>
-                              saveLoanPaidCell(
-                                "investment",
-                                investment.id,
-                                month.key,
-                                event.target.checked,
-                              )
-                            }
-                          />
-                          <input
-                            value={investmentAmountCell.amount}
-                            onChange={(event) =>
-                              setLoanAmountMap((prev) => ({
-                                ...prev,
-                                [`investment__${investment.id}__${month.key}`]: {
-                                  ...getLoanAmountCell(
-                                    "investment",
-                                    investment.id,
-                                    month.key,
-                                  ),
-                                  amount: event.target.value,
-                                },
-                              }))
-                            }
-                            onBlur={() =>
-                              saveLoanAmountCell("investment", investment.id, month.key)
-                            }
-                            disabled={investmentPaid}
-                            className={`${moneyInputClass} ${investmentPaid
-                              ? "cursor-not-allowed border bg-violet-50/90 text-violet-800 opacity-80 dark:bg-violet-950/70 dark:text-violet-200"
-                              : ""
-                              }`}
-                          />
-                          <InlineCommentEditor
-                            commentKey={`loan__investment__${investment.id}__${month.key}`}
-                            value={
-                              getCommentCell(
-                                "loan",
-                                `investment__${investment.id}`,
-                                month.key,
-                              ).comment
-                            }
-                            isOpen={
-                              openCommentKey ===
-                              `loan__investment__${investment.id}__${month.key}`
-                            }
-                            onToggle={() =>
-                              setOpenCommentKey(
+                {months.map((month) => (
+                  <td key={`investment-header-${month.key}`} className="border-r px-3 py-1.5" />
+                ))}
+              </tr>
+              {ceetuInvestments.map((investment) => (
+                <tr key={investment.id} className="border-t bg-violet-50/40 dark:bg-violet-950/20">
+                  <td className="sticky left-0 z-10 border-r bg-violet-50/40 px-3 py-1.5 dark:bg-violet-950/20">
+                    {investment.name}
+                    {!investment.is_active ? " (inactive)" : ""}
+                  </td>
+                  {months.map((month) => {
+                    const start = new Date(investment.start_date);
+                    const end = investment.end_date ? new Date(investment.end_date) : null;
+                    const inRange =
+                      month.date >= new Date(start.getFullYear(), start.getMonth(), 1) &&
+                      (!end || month.date <= new Date(end.getFullYear(), end.getMonth(), 1));
+                    const investmentPaid = getLoanPaidCell(
+                      "investment",
+                      investment.id,
+                      month.key,
+                    ).is_paid;
+                    const investmentAmountCell = getLoanAmountCell(
+                      "investment",
+                      investment.id,
+                      month.key,
+                    );
+                    return (
+                      <td
+                        key={`investment-${investment.id}-${month.key}`}
+                        className={`border-r px-3 py-1.5 text-right tabular-nums ${inRange && investmentPaid
+                          ? "bg-violet-100/70 dark:bg-violet-900/30"
+                          : ""
+                          }`}
+                      >
+                        {inRange ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <input
+                              type="checkbox"
+                              className={checkboxInvestmentClass}
+                              checked={investmentPaid}
+                              onChange={(event) =>
+                                saveLoanPaidCell(
+                                  "investment",
+                                  investment.id,
+                                  month.key,
+                                  event.target.checked,
+                                )
+                              }
+                            />
+                            <input
+                              value={investmentAmountCell.amount}
+                              onChange={(event) =>
+                                setLoanAmountMap((prev) => ({
+                                  ...prev,
+                                  [`investment__${investment.id}__${month.key}`]: {
+                                    ...getLoanAmountCell(
+                                      "investment",
+                                      investment.id,
+                                      month.key,
+                                    ),
+                                    amount: event.target.value,
+                                  },
+                                }))
+                              }
+                              onBlur={() =>
+                                saveLoanAmountCell("investment", investment.id, month.key)
+                              }
+                              disabled={investmentPaid}
+                              className={`${moneyInputClass} ${investmentPaid
+                                ? "cursor-not-allowed border bg-violet-50/90 text-violet-800 opacity-80 dark:bg-violet-950/70 dark:text-violet-200"
+                                : ""
+                                }`}
+                            />
+                            <InlineCommentEditor
+                              commentKey={`loan__investment__${investment.id}__${month.key}`}
+                              value={
+                                getCommentCell(
+                                  "loan",
+                                  `investment__${investment.id}`,
+                                  month.key,
+                                ).comment
+                              }
+                              isOpen={
                                 openCommentKey ===
-                                  `loan__investment__${investment.id}__${month.key}`
-                                  ? null
-                                  : `loan__investment__${investment.id}__${month.key}`,
-                              )
-                            }
-                            onChange={(value) =>
-                              setCommentMap((prev) => ({
-                                ...prev,
-                                [`loan__investment__${investment.id}__${month.key}`]: {
-                                  ...getCommentCell(
-                                    "loan",
-                                    `investment__${investment.id}`,
-                                    month.key,
-                                  ),
-                                  comment: value,
-                                },
-                              }))
-                            }
-                            onSave={() =>
-                              saveCommentCell(
-                                "loan",
-                                `investment__${investment.id}`,
-                                month.key,
-                              )
-                            }
-                          />
-                        </div>
-                      ) : (
-                        <span className="text-sm tabular-nums">0</span>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-            <tr className="border-y bg-rose-100/60 font-semibold dark:bg-rose-900/30">
-              <td className="sticky left-0 z-10 border-r bg-rose-100/60 px-3 py-1.5 dark:bg-rose-900/30">
-                Fixed Loans
-              </td>
-              {months.map((month) => (
-                <td key={`fixed-header-${month.key}`} className="border-r px-3 py-1.5" />
+                                `loan__investment__${investment.id}__${month.key}`
+                              }
+                              onToggle={() =>
+                                setOpenCommentKey(
+                                  openCommentKey ===
+                                    `loan__investment__${investment.id}__${month.key}`
+                                    ? null
+                                    : `loan__investment__${investment.id}__${month.key}`,
+                                )
+                              }
+                              onChange={(value) =>
+                                setCommentMap((prev) => ({
+                                  ...prev,
+                                  [`loan__investment__${investment.id}__${month.key}`]: {
+                                    ...getCommentCell(
+                                      "loan",
+                                      `investment__${investment.id}`,
+                                      month.key,
+                                    ),
+                                    comment: value,
+                                  },
+                                }))
+                              }
+                              onSave={() =>
+                                saveCommentCell(
+                                  "loan",
+                                  `investment__${investment.id}`,
+                                  month.key,
+                                )
+                              }
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-sm tabular-nums">0</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
               ))}
-            </tr>
-            {fixedLoans.map((loan) => (
-              <tr key={loan.id} className="border-t bg-rose-50/40 dark:bg-rose-950/20">
-                <td className="sticky left-0 z-10 border-r bg-rose-50/40 px-3 py-1.5 dark:bg-rose-950/20">
-                  {loan.loan_name}
-                  {!loan.is_active ? " (inactive)" : ""}
+              <tr className="border-y bg-rose-100/60 font-semibold dark:bg-rose-900/30">
+                <td className="sticky left-0 z-10 border-r bg-rose-100/60 px-3 py-1.5 dark:bg-rose-900/30">
+                  Fixed Loans
                 </td>
-                {months.map((month) => {
-                  const start = new Date(loan.start_date);
-                  const end = loan.end_date ? new Date(loan.end_date) : null;
-                  const fixedPaid = getLoanPaidCell("fixed", loan.id, month.key).is_paid;
-                  const fixedAmountCell = getLoanAmountCell("fixed", loan.id, month.key);
-                  const inRange =
-                    month.date >=
-                    new Date(start.getFullYear(), start.getMonth(), 1) &&
-                    (!end ||
-                      month.date <= new Date(end.getFullYear(), end.getMonth(), 1));
-                  return (
-                    <td
-                      key={`fixed-${loan.id}-${month.key}`}
-                      className={`border-r px-3 py-1.5 text-right tabular-nums ${inRange && fixedPaid
-                        ? "bg-rose-100/70 dark:bg-rose-900/30"
-                        : ""
-                        }`}
-                    >
-                      {inRange ? (
+                {months.map((month) => (
+                  <td key={`fixed-header-${month.key}`} className="border-r px-3 py-1.5" />
+                ))}
+              </tr>
+              {fixedLoans.map((loan) => (
+                <tr key={loan.id} className="border-t bg-rose-50/40 dark:bg-rose-950/20">
+                  <td className="sticky left-0 z-10 border-r bg-rose-50/40 px-3 py-1.5 dark:bg-rose-950/20">
+                    {loan.loan_name}
+                    {!loan.is_active ? " (inactive)" : ""}
+                  </td>
+                  {months.map((month) => {
+                    const start = new Date(loan.start_date);
+                    const end = loan.end_date ? new Date(loan.end_date) : null;
+                    const fixedPaid = getLoanPaidCell("fixed", loan.id, month.key).is_paid;
+                    const fixedAmountCell = getLoanAmountCell("fixed", loan.id, month.key);
+                    const inRange =
+                      month.date >=
+                      new Date(start.getFullYear(), start.getMonth(), 1) &&
+                      (!end ||
+                        month.date <= new Date(end.getFullYear(), end.getMonth(), 1));
+                    return (
+                      <td
+                        key={`fixed-${loan.id}-${month.key}`}
+                        className={`border-r px-3 py-1.5 text-right tabular-nums ${inRange && fixedPaid
+                          ? "bg-rose-100/70 dark:bg-rose-900/30"
+                          : ""
+                          }`}
+                      >
+                        {inRange ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <input
+                              type="checkbox"
+                              className={checkboxFixedLoanClass}
+                              checked={fixedPaid}
+                              onChange={(event) =>
+                                saveLoanPaidCell(
+                                  "fixed",
+                                  loan.id,
+                                  month.key,
+                                  event.target.checked,
+                                )
+                              }
+                            />
+                            <input
+                              value={fixedAmountCell.amount}
+                              onChange={(event) =>
+                                setLoanAmountMap((prev) => ({
+                                  ...prev,
+                                  [`fixed__${loan.id}__${month.key}`]: {
+                                    ...getLoanAmountCell("fixed", loan.id, month.key),
+                                    amount: event.target.value,
+                                  },
+                                }))
+                              }
+                              onBlur={() => saveLoanAmountCell("fixed", loan.id, month.key)}
+                              disabled={fixedPaid}
+                              className={`${moneyInputClass} ${fixedPaid
+                                ? "cursor-not-allowed border bg-rose-50/90 text-rose-800 opacity-80 dark:bg-rose-950/70 dark:text-rose-200"
+                                : ""
+                                }`}
+                            />
+                            <InlineCommentEditor
+                              commentKey={`loan__fixed__${loan.id}__${month.key}`}
+                              value={getCommentCell("loan", `fixed__${loan.id}`, month.key).comment}
+                              isOpen={openCommentKey === `loan__fixed__${loan.id}__${month.key}`}
+                              onToggle={() =>
+                                setOpenCommentKey(
+                                  openCommentKey === `loan__fixed__${loan.id}__${month.key}`
+                                    ? null
+                                    : `loan__fixed__${loan.id}__${month.key}`,
+                                )
+                              }
+                              onChange={(value) =>
+                                setCommentMap((prev) => ({
+                                  ...prev,
+                                  [`loan__fixed__${loan.id}__${month.key}`]: {
+                                    ...getCommentCell("loan", `fixed__${loan.id}`, month.key),
+                                    comment: value,
+                                  },
+                                }))
+                              }
+                              onSave={() =>
+                                saveCommentCell("loan", `fixed__${loan.id}`, month.key)
+                              }
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-sm tabular-nums">0</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              <tr className="border-y bg-sky-100/60 font-semibold dark:bg-sky-900/30">
+                <td className="sticky left-0 z-10 border-r bg-sky-100/60 px-3 py-1.5 dark:bg-sky-900/30">
+                  Jewel Loans
+                </td>
+                {months.map((month) => (
+                  <td key={`jewel-header-${month.key}`} className="border-r px-3 py-1.5" />
+                ))}
+              </tr>
+              <tr className="border-t bg-sky-50/40 font-semibold dark:bg-sky-950/20">
+                <td className="sticky left-0 z-10 border-r bg-sky-50/40 px-3 py-1.5 dark:bg-sky-950/20">
+                  Bank (Interest)
+                </td>
+                {months.map((month, index) => (
+                  <td
+                    key={`jewel-bank-${index}`}
+                    className={`border-r px-3 py-1.5 text-right tabular-nums ${getLoanPaidCell("jewel_type", "bank", month.key).is_paid
+                      ? "bg-blue-100/70 dark:bg-blue-900/30"
+                      : ""
+                      }`}
+                  >
+                    <div className="flex items-center justify-end gap-2">
+                      <input
+                        type="checkbox"
+                        className={checkboxJewelLoanClass}
+                        checked={getLoanPaidCell("jewel_type", "bank", month.key).is_paid}
+                        onChange={(event) =>
+                          saveLoanPaidCell(
+                            "jewel_type",
+                            "bank",
+                            month.key,
+                            event.target.checked,
+                          )
+                        }
+                      />
+                      <input
+                        value={getLoanAmountCell("jewel_type", "bank", month.key).amount}
+                        onChange={(event) =>
+                          setLoanAmountMap((prev) => ({
+                            ...prev,
+                            [`jewel_type__bank__${month.key}`]: {
+                              ...getLoanAmountCell("jewel_type", "bank", month.key),
+                              amount: event.target.value,
+                            },
+                          }))
+                        }
+                        onBlur={() => saveLoanAmountCell("jewel_type", "bank", month.key)}
+                        disabled={getLoanPaidCell("jewel_type", "bank", month.key).is_paid}
+                        className={`${moneyInputClass} ${getLoanPaidCell("jewel_type", "bank", month.key).is_paid
+                          ? "cursor-not-allowed border bg-blue-50/90 text-blue-800 opacity-80 dark:bg-blue-950/70 dark:text-blue-200"
+                          : ""
+                          }`}
+                      />
+                      <InlineCommentEditor
+                        commentKey={`loan__jewel_type__bank__${month.key}`}
+                        value={getCommentCell("loan", "jewel_type__bank", month.key).comment}
+                        isOpen={openCommentKey === `loan__jewel_type__bank__${month.key}`}
+                        onToggle={() =>
+                          setOpenCommentKey(
+                            openCommentKey === `loan__jewel_type__bank__${month.key}`
+                              ? null
+                              : `loan__jewel_type__bank__${month.key}`,
+                          )
+                        }
+                        onChange={(value) =>
+                          setCommentMap((prev) => ({
+                            ...prev,
+                            [`loan__jewel_type__bank__${month.key}`]: {
+                              ...getCommentCell("loan", "jewel_type__bank", month.key),
+                              comment: value,
+                            },
+                          }))
+                        }
+                        onSave={() => saveCommentCell("loan", "jewel_type__bank", month.key)}
+                      />
+                    </div>
+                  </td>
+                ))}
+              </tr>
+              <tr className="border-t bg-sky-50/40 font-semibold dark:bg-sky-950/20">
+                <td className="sticky left-0 z-10 border-r bg-sky-50/40 px-3 py-1.5 dark:bg-sky-950/20">
+                  Pawn (Interest)
+                </td>
+                {months.map((month, index) => (
+                  <td
+                    key={`jewel-pawn-${index}`}
+                    className={`border-r px-3 py-1.5 text-right tabular-nums ${getLoanPaidCell("jewel_type", "pawn", month.key).is_paid
+                      ? "bg-blue-100/70 dark:bg-blue-900/30"
+                      : ""
+                      }`}
+                  >
+                    <div className="flex items-center justify-end gap-2">
+                      <input
+                        type="checkbox"
+                        className={checkboxJewelLoanClass}
+                        checked={getLoanPaidCell("jewel_type", "pawn", month.key).is_paid}
+                        onChange={(event) =>
+                          saveLoanPaidCell(
+                            "jewel_type",
+                            "pawn",
+                            month.key,
+                            event.target.checked,
+                          )
+                        }
+                      />
+                      <input
+                        value={getLoanAmountCell("jewel_type", "pawn", month.key).amount}
+                        onChange={(event) =>
+                          setLoanAmountMap((prev) => ({
+                            ...prev,
+                            [`jewel_type__pawn__${month.key}`]: {
+                              ...getLoanAmountCell("jewel_type", "pawn", month.key),
+                              amount: event.target.value,
+                            },
+                          }))
+                        }
+                        onBlur={() => saveLoanAmountCell("jewel_type", "pawn", month.key)}
+                        disabled={getLoanPaidCell("jewel_type", "pawn", month.key).is_paid}
+                        className={`${moneyInputClass} ${getLoanPaidCell("jewel_type", "pawn", month.key).is_paid
+                          ? "cursor-not-allowed border bg-blue-50/90 text-blue-800 opacity-80 dark:bg-blue-950/70 dark:text-blue-200"
+                          : ""
+                          }`}
+                      />
+                      <InlineCommentEditor
+                        commentKey={`loan__jewel_type__pawn__${month.key}`}
+                        value={getCommentCell("loan", "jewel_type__pawn", month.key).comment}
+                        isOpen={openCommentKey === `loan__jewel_type__pawn__${month.key}`}
+                        onToggle={() =>
+                          setOpenCommentKey(
+                            openCommentKey === `loan__jewel_type__pawn__${month.key}`
+                              ? null
+                              : `loan__jewel_type__pawn__${month.key}`,
+                          )
+                        }
+                        onChange={(value) =>
+                          setCommentMap((prev) => ({
+                            ...prev,
+                            [`loan__jewel_type__pawn__${month.key}`]: {
+                              ...getCommentCell("loan", "jewel_type__pawn", month.key),
+                              comment: value,
+                            },
+                          }))
+                        }
+                        onSave={() => saveCommentCell("loan", "jewel_type__pawn", month.key)}
+                      />
+                    </div>
+                  </td>
+                ))}
+              </tr>
+              <tr className="border-y border-fuchsia-200 bg-fuchsia-100/70 font-semibold text-fuchsia-900 dark:border-fuchsia-900/40 dark:bg-fuchsia-900/25 dark:text-fuchsia-100">
+                <td className="sticky left-0 z-10 border-r border-fuchsia-200 bg-fuchsia-100/90 px-3 py-1.5 dark:border-fuchsia-900/40 dark:bg-fuchsia-900/35">
+                  Total EMI
+                </td>
+                {months.map((month, index) => (
+                  <td key={`emi-total-${month.key}`} className="border-r border-fuchsia-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-fuchsia-900/40">
+                    {monthlyFixedLoanTotals[index] +
+                      monthlyJewelLoanTotals[index] +
+                      monthlyInvestmentTotals[index]}
+                  </td>
+                ))}
+              </tr>
+
+
+
+              <tr className="border-y border-violet-200 bg-violet-100/70 font-semibold text-violet-900 dark:border-violet-900/40 dark:bg-violet-900/25 dark:text-violet-100">
+                <td className="sticky left-0 z-10 border-r border-violet-200 bg-violet-100/90 px-3 py-1.5 dark:border-violet-900/40 dark:bg-violet-900/35">
+                  Total Expenses
+                </td>
+                {monthlyExpenseTotals.map((expense, index) => (
+                  <td key={`confirmed-${index}`} className="border-r border-violet-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-violet-900/40">
+                    {expense +
+                      monthlyFixedLoanTotals[index] +
+                      monthlyJewelLoanTotals[index] +
+                      monthlyInvestmentTotals[index]}
+                  </td>
+                ))}
+              </tr>
+
+              <tr className="border-y bg-orange-100/60 font-semibold dark:bg-orange-900/30">
+                <td className="sticky left-0 z-10 border-r bg-orange-100/60 px-3 py-1.5 dark:bg-orange-900/30">
+                  Income Sources
+                </td>
+                {months.map((month) => (
+                  <td key={`income-header-${month.key}`} className="border-r px-3 py-1.5" />
+                ))}
+              </tr>
+              {incomeSources.map((source, sourceIndex) => (
+                <tr
+                  key={`${source.id}-${sourceIndex}`}
+                  className="border-t bg-orange-50/40 font-semibold dark:bg-orange-950/20"
+                >
+                  <td className="sticky left-0 z-10 border-r bg-orange-50/40 px-3 py-1.5 dark:bg-orange-950/20">
+                    {source.name}
+                  </td>
+                  {months.map((month) => {
+                    const cell = getIncomeCell(source.id, month.key);
+                    return (
+                      <td
+                        key={`income-${source.id}-${month.key}`}
+                        className="border-r px-2 py-1 text-right tabular-nums"
+                      >
                         <div className="flex items-center justify-end gap-2">
                           <input
-                            type="checkbox"
-                            className={checkboxFixedLoanClass}
-                            checked={fixedPaid}
+                            value={cell.amount}
                             onChange={(event) =>
-                              saveLoanPaidCell(
-                                "fixed",
-                                loan.id,
-                                month.key,
-                                event.target.checked,
-                              )
-                            }
-                          />
-                          <input
-                            value={fixedAmountCell.amount}
-                            onChange={(event) =>
-                              setLoanAmountMap((prev) => ({
+                              setIncomeCellMap((prev) => ({
                                 ...prev,
-                                [`fixed__${loan.id}__${month.key}`]: {
-                                  ...getLoanAmountCell("fixed", loan.id, month.key),
+                                [`${source.id}__${month.key}`]: {
+                                  ...getIncomeCell(source.id, month.key),
                                   amount: event.target.value,
                                 },
                               }))
                             }
-                            onBlur={() => saveLoanAmountCell("fixed", loan.id, month.key)}
-                            disabled={fixedPaid}
-                            className={`${moneyInputClass} ${fixedPaid
-                              ? "cursor-not-allowed border bg-rose-50/90 text-rose-800 opacity-80 dark:bg-rose-950/70 dark:text-rose-200"
-                              : ""
-                              }`}
+                            onBlur={() => saveIncomeCell(source.id, month.key)}
+                            className={moneyInputClass}
                           />
                           <InlineCommentEditor
-                            commentKey={`loan__fixed__${loan.id}__${month.key}`}
-                            value={getCommentCell("loan", `fixed__${loan.id}`, month.key).comment}
-                            isOpen={openCommentKey === `loan__fixed__${loan.id}__${month.key}`}
+                            commentKey={`income__${source.id}__${month.key}`}
+                            value={getCommentCell("income", source.id, month.key).comment}
+                            isOpen={openCommentKey === `income__${source.id}__${month.key}`}
                             onToggle={() =>
                               setOpenCommentKey(
-                                openCommentKey === `loan__fixed__${loan.id}__${month.key}`
+                                openCommentKey === `income__${source.id}__${month.key}`
                                   ? null
-                                  : `loan__fixed__${loan.id}__${month.key}`,
+                                  : `income__${source.id}__${month.key}`,
                               )
                             }
                             onChange={(value) =>
                               setCommentMap((prev) => ({
                                 ...prev,
-                                [`loan__fixed__${loan.id}__${month.key}`]: {
-                                  ...getCommentCell("loan", `fixed__${loan.id}`, month.key),
+                                [`income__${source.id}__${month.key}`]: {
+                                  ...getCommentCell("income", source.id, month.key),
                                   comment: value,
                                 },
                               }))
                             }
-                            onSave={() =>
-                              saveCommentCell("loan", `fixed__${loan.id}`, month.key)
-                            }
+                            onSave={() => saveCommentCell("income", source.id, month.key)}
                           />
                         </div>
-                      ) : (
-                        <span className="text-sm tabular-nums">0</span>
-                      )}
-                    </td>
-                  );
-                })}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              <tr className="border-y bg-indigo-100/60 font-semibold dark:bg-indigo-900/30">
+                <td className="sticky left-0 z-10 border-r bg-indigo-100/60 px-3 py-1.5 dark:bg-indigo-900/30">
+                  Remaining Exp
+                </td>
+                {months.map((month, index) => (
+                  <td key={`remaining-expenses-${month.key}`} className="border-r px-3 py-1.5 text-right text-base font-semibold tabular-nums">
+                    {monthlyRemainingExpenseTemplateTotals[index] +
+                      monthlyRemainingFixedLoanTotals[index] +
+                      monthlyRemainingJewelLoanTotals[index] +
+                      monthlyRemainingInvestmentTotals[index]}
+                  </td>
+                ))}
               </tr>
-            ))}
-            <tr className="border-y bg-sky-100/60 font-semibold dark:bg-sky-900/30">
-              <td className="sticky left-0 z-10 border-r bg-sky-100/60 px-3 py-1.5 dark:bg-sky-900/30">
-                Jewel Loans
-              </td>
-              {months.map((month) => (
-                <td key={`jewel-header-${month.key}`} className="border-r px-3 py-1.5" />
-              ))}
-            </tr>
-            <tr className="border-t bg-sky-50/40 font-semibold dark:bg-sky-950/20">
-              <td className="sticky left-0 z-10 border-r bg-sky-50/40 px-3 py-1.5 dark:bg-sky-950/20">
-                Bank (Interest)
-              </td>
-              {months.map((month, index) => (
-                <td
-                  key={`jewel-bank-${index}`}
-                  className={`border-r px-3 py-1.5 text-right tabular-nums ${getLoanPaidCell("jewel_type", "bank", month.key).is_paid
-                    ? "bg-blue-100/70 dark:bg-blue-900/30"
-                    : ""
-                    }`}
-                >
-                  <div className="flex items-center justify-end gap-2">
-                    <input
-                      type="checkbox"
-                      className={checkboxJewelLoanClass}
-                      checked={getLoanPaidCell("jewel_type", "bank", month.key).is_paid}
-                      onChange={(event) =>
-                        saveLoanPaidCell(
-                          "jewel_type",
-                          "bank",
-                          month.key,
-                          event.target.checked,
-                        )
-                      }
-                    />
-                    <input
-                      value={getLoanAmountCell("jewel_type", "bank", month.key).amount}
-                      onChange={(event) =>
-                        setLoanAmountMap((prev) => ({
-                          ...prev,
-                          [`jewel_type__bank__${month.key}`]: {
-                            ...getLoanAmountCell("jewel_type", "bank", month.key),
-                            amount: event.target.value,
-                          },
-                        }))
-                      }
-                      onBlur={() => saveLoanAmountCell("jewel_type", "bank", month.key)}
-                      disabled={getLoanPaidCell("jewel_type", "bank", month.key).is_paid}
-                      className={`${moneyInputClass} ${getLoanPaidCell("jewel_type", "bank", month.key).is_paid
-                        ? "cursor-not-allowed border bg-blue-50/90 text-blue-800 opacity-80 dark:bg-blue-950/70 dark:text-blue-200"
-                        : ""
-                        }`}
-                    />
-                    <InlineCommentEditor
-                      commentKey={`loan__jewel_type__bank__${month.key}`}
-                      value={getCommentCell("loan", "jewel_type__bank", month.key).comment}
-                      isOpen={openCommentKey === `loan__jewel_type__bank__${month.key}`}
-                      onToggle={() =>
-                        setOpenCommentKey(
-                          openCommentKey === `loan__jewel_type__bank__${month.key}`
-                            ? null
-                            : `loan__jewel_type__bank__${month.key}`,
-                        )
-                      }
-                      onChange={(value) =>
-                        setCommentMap((prev) => ({
-                          ...prev,
-                          [`loan__jewel_type__bank__${month.key}`]: {
-                            ...getCommentCell("loan", "jewel_type__bank", month.key),
-                            comment: value,
-                          },
-                        }))
-                      }
-                      onSave={() => saveCommentCell("loan", "jewel_type__bank", month.key)}
-                    />
-                  </div>
-                </td>
-              ))}
-            </tr>
-            <tr className="border-t bg-sky-50/40 font-semibold dark:bg-sky-950/20">
-              <td className="sticky left-0 z-10 border-r bg-sky-50/40 px-3 py-1.5 dark:bg-sky-950/20">
-                Pawn (Interest)
-              </td>
-              {months.map((month, index) => (
-                <td
-                  key={`jewel-pawn-${index}`}
-                  className={`border-r px-3 py-1.5 text-right tabular-nums ${getLoanPaidCell("jewel_type", "pawn", month.key).is_paid
-                    ? "bg-blue-100/70 dark:bg-blue-900/30"
-                    : ""
-                    }`}
-                >
-                  <div className="flex items-center justify-end gap-2">
-                    <input
-                      type="checkbox"
-                      className={checkboxJewelLoanClass}
-                      checked={getLoanPaidCell("jewel_type", "pawn", month.key).is_paid}
-                      onChange={(event) =>
-                        saveLoanPaidCell(
-                          "jewel_type",
-                          "pawn",
-                          month.key,
-                          event.target.checked,
-                        )
-                      }
-                    />
-                    <input
-                      value={getLoanAmountCell("jewel_type", "pawn", month.key).amount}
-                      onChange={(event) =>
-                        setLoanAmountMap((prev) => ({
-                          ...prev,
-                          [`jewel_type__pawn__${month.key}`]: {
-                            ...getLoanAmountCell("jewel_type", "pawn", month.key),
-                            amount: event.target.value,
-                          },
-                        }))
-                      }
-                      onBlur={() => saveLoanAmountCell("jewel_type", "pawn", month.key)}
-                      disabled={getLoanPaidCell("jewel_type", "pawn", month.key).is_paid}
-                      className={`${moneyInputClass} ${getLoanPaidCell("jewel_type", "pawn", month.key).is_paid
-                        ? "cursor-not-allowed border bg-blue-50/90 text-blue-800 opacity-80 dark:bg-blue-950/70 dark:text-blue-200"
-                        : ""
-                        }`}
-                    />
-                    <InlineCommentEditor
-                      commentKey={`loan__jewel_type__pawn__${month.key}`}
-                      value={getCommentCell("loan", "jewel_type__pawn", month.key).comment}
-                      isOpen={openCommentKey === `loan__jewel_type__pawn__${month.key}`}
-                      onToggle={() =>
-                        setOpenCommentKey(
-                          openCommentKey === `loan__jewel_type__pawn__${month.key}`
-                            ? null
-                            : `loan__jewel_type__pawn__${month.key}`,
-                        )
-                      }
-                      onChange={(value) =>
-                        setCommentMap((prev) => ({
-                          ...prev,
-                          [`loan__jewel_type__pawn__${month.key}`]: {
-                            ...getCommentCell("loan", "jewel_type__pawn", month.key),
-                            comment: value,
-                          },
-                        }))
-                      }
-                      onSave={() => saveCommentCell("loan", "jewel_type__pawn", month.key)}
-                    />
-                  </div>
-                </td>
-              ))}
-            </tr>
-            <tr className="border-y border-fuchsia-200 bg-fuchsia-100/70 font-semibold text-fuchsia-900 dark:border-fuchsia-900/40 dark:bg-fuchsia-900/25 dark:text-fuchsia-100">
-              <td className="sticky left-0 z-10 border-r border-fuchsia-200 bg-fuchsia-100/90 px-3 py-1.5 dark:border-fuchsia-900/40 dark:bg-fuchsia-900/35">
-                Total EMI
-              </td>
-              {months.map((month, index) => (
-                <td key={`emi-total-${month.key}`} className="border-r border-fuchsia-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-fuchsia-900/40">
-                  {monthlyFixedLoanTotals[index] +
-                    monthlyJewelLoanTotals[index] +
-                    monthlyInvestmentTotals[index]}
-                </td>
-              ))}
-            </tr>
-
-
-
-            <tr className="border-y border-violet-200 bg-violet-100/70 font-semibold text-violet-900 dark:border-violet-900/40 dark:bg-violet-900/25 dark:text-violet-100">
-              <td className="sticky left-0 z-10 border-r border-violet-200 bg-violet-100/90 px-3 py-1.5 dark:border-violet-900/40 dark:bg-violet-900/35">
-                Total Expenses
-              </td>
-              {monthlyExpenseTotals.map((expense, index) => (
-                <td key={`confirmed-${index}`} className="border-r border-violet-200 px-3 py-1.5 text-right text-base font-semibold tabular-nums dark:border-violet-900/40">
-                  {expense +
-                    monthlyFixedLoanTotals[index] +
-                    monthlyJewelLoanTotals[index] +
-                    monthlyInvestmentTotals[index]}
-                </td>
-              ))}
-            </tr>
-
-            <tr className="border-y bg-orange-100/60 font-semibold dark:bg-orange-900/30">
-              <td className="sticky left-0 z-10 border-r bg-orange-100/60 px-3 py-1.5 dark:bg-orange-900/30">
-                Income Sources
-              </td>
-              {months.map((month) => (
-                <td key={`income-header-${month.key}`} className="border-r px-3 py-1.5" />
-              ))}
-            </tr>
-            {incomeSources.map((source, sourceIndex) => (
-              <tr
-                key={`${source.id}-${sourceIndex}`}
-                className="border-t bg-orange-50/40 font-semibold dark:bg-orange-950/20"
-              >
-                <td className="sticky left-0 z-10 border-r bg-orange-50/40 px-3 py-1.5 dark:bg-orange-950/20">
-                  {source.name}
+              <tr className="border-y bg-indigo-100/60 font-semibold dark:bg-indigo-900/30">
+                <td className="sticky left-0 z-10 border-r bg-indigo-100/60 px-3 py-1.5 dark:bg-indigo-900/30">
+                  Cash In Hand
                 </td>
                 {months.map((month) => {
-                  const cell = getIncomeCell(source.id, month.key);
+                  const cell = getCashCell(month.key);
                   return (
-                    <td
-                      key={`income-${source.id}-${month.key}`}
-                      className="border-r px-2 py-1 text-right tabular-nums"
-                    >
+                    <td key={`cash-in-hand-${month.key}`} className="border-r px-2 py-1 text-right tabular-nums">
                       <div className="flex items-center justify-end gap-2">
                         <input
                           value={cell.amount}
                           onChange={(event) =>
-                            setIncomeCellMap((prev) => ({
+                            setCashCellMap((prev) => ({
                               ...prev,
-                              [`${source.id}__${month.key}`]: {
-                                ...getIncomeCell(source.id, month.key),
+                              [month.key]: {
+                                ...getCashCell(month.key),
                                 amount: event.target.value,
                               },
                             }))
                           }
-                          onBlur={() => saveIncomeCell(source.id, month.key)}
+                          onBlur={() => saveCashCell(month.key)}
                           className={moneyInputClass}
                         />
                         <InlineCommentEditor
-                          commentKey={`income__${source.id}__${month.key}`}
-                          value={getCommentCell("income", source.id, month.key).comment}
-                          isOpen={openCommentKey === `income__${source.id}__${month.key}`}
+                          commentKey={`cash__cash_in_hand__${month.key}`}
+                          value={getCommentCell("cash", "cash_in_hand", month.key).comment}
+                          isOpen={openCommentKey === `cash__cash_in_hand__${month.key}`}
                           onToggle={() =>
                             setOpenCommentKey(
-                              openCommentKey === `income__${source.id}__${month.key}`
+                              openCommentKey === `cash__cash_in_hand__${month.key}`
                                 ? null
-                                : `income__${source.id}__${month.key}`,
+                                : `cash__cash_in_hand__${month.key}`,
                             )
                           }
                           onChange={(value) =>
                             setCommentMap((prev) => ({
                               ...prev,
-                              [`income__${source.id}__${month.key}`]: {
-                                ...getCommentCell("income", source.id, month.key),
+                              [`cash__cash_in_hand__${month.key}`]: {
+                                ...getCommentCell("cash", "cash_in_hand", month.key),
                                 comment: value,
                               },
                             }))
                           }
-                          onSave={() => saveCommentCell("income", source.id, month.key)}
+                          onSave={() => saveCommentCell("cash", "cash_in_hand", month.key)}
                         />
                       </div>
                     </td>
                   );
                 })}
               </tr>
-            ))}
-            <tr className="border-y bg-indigo-100/60 font-semibold dark:bg-indigo-900/30">
-              <td className="sticky left-0 z-10 border-r bg-indigo-100/60 px-3 py-1.5 dark:bg-indigo-900/30">
-                Remaining Exp
-              </td>
-              {months.map((month, index) => (
-                <td key={`remaining-expenses-${month.key}`} className="border-r px-3 py-1.5 text-right text-base font-semibold tabular-nums">
-                  {monthlyRemainingExpenseTemplateTotals[index] +
-                    monthlyRemainingFixedLoanTotals[index] +
-                    monthlyRemainingJewelLoanTotals[index] +
-                    monthlyRemainingInvestmentTotals[index]}
+              <tr className="border-y border-cyan-300 bg-cyan-200/80 font-bold text-cyan-950 dark:border-cyan-900/50 dark:bg-cyan-900/35 dark:text-cyan-100">
+                <td className="sticky left-0 z-10 border-r border-cyan-300 bg-cyan-200/95 px-3 py-1.5 dark:border-cyan-900/50 dark:bg-cyan-900/50">
+                  Balance Amount
                 </td>
-              ))}
-            </tr>
-            <tr className="border-y bg-indigo-100/60 font-semibold dark:bg-indigo-900/30">
-              <td className="sticky left-0 z-10 border-r bg-indigo-100/60 px-3 py-1.5 dark:bg-indigo-900/30">
-                Cash In Hand
-              </td>
-              {months.map((month) => {
-                const cell = getCashCell(month.key);
-                return (
-                  <td key={`cash-in-hand-${month.key}`} className="border-r px-2 py-1 text-right tabular-nums">
-                    <div className="flex items-center justify-end gap-2">
-                      <input
-                        value={cell.amount}
-                        onChange={(event) =>
-                          setCashCellMap((prev) => ({
-                            ...prev,
-                            [month.key]: {
-                              ...getCashCell(month.key),
-                              amount: event.target.value,
-                            },
-                          }))
-                        }
-                        onBlur={() => saveCashCell(month.key)}
-                        className={moneyInputClass}
-                      />
-                      <InlineCommentEditor
-                        commentKey={`cash__cash_in_hand__${month.key}`}
-                        value={getCommentCell("cash", "cash_in_hand", month.key).comment}
-                        isOpen={openCommentKey === `cash__cash_in_hand__${month.key}`}
-                        onToggle={() =>
-                          setOpenCommentKey(
-                            openCommentKey === `cash__cash_in_hand__${month.key}`
-                              ? null
-                              : `cash__cash_in_hand__${month.key}`,
-                          )
-                        }
-                        onChange={(value) =>
-                          setCommentMap((prev) => ({
-                            ...prev,
-                            [`cash__cash_in_hand__${month.key}`]: {
-                              ...getCommentCell("cash", "cash_in_hand", month.key),
-                              comment: value,
-                            },
-                          }))
-                        }
-                        onSave={() => saveCommentCell("cash", "cash_in_hand", month.key)}
-                      />
-                    </div>
-                  </td>
-                );
-              })}
-            </tr>
-            <tr className="border-y border-cyan-300 bg-cyan-200/80 font-bold text-cyan-950 dark:border-cyan-900/50 dark:bg-cyan-900/35 dark:text-cyan-100">
-              <td className="sticky left-0 z-10 border-r border-cyan-300 bg-cyan-200/95 px-3 py-1.5 dark:border-cyan-900/50 dark:bg-cyan-900/50">
-                Balance Amount
-              </td>
-              {months.map((month, index) => {
-                const balanceValue =
-                  monthlyCashInHandTotals[index] -
-                  (monthlyRemainingExpenseTemplateTotals[index] +
-                    monthlyRemainingFixedLoanTotals[index] +
-                    monthlyRemainingJewelLoanTotals[index] +
-                    monthlyRemainingInvestmentTotals[index]);
-                return (
-                  <td
-                    key={`est-balance-${month.key}`}
-                    className={`border-r border-cyan-300 px-3 py-1.5 text-right text-lg font-extrabold tabular-nums dark:border-cyan-900/50 ${getBalanceCellClass(
-                      balanceValue,
-                    )}`}
-                  >
-                    {balanceValue}
-                  </td>
-                );
-              })}
-            </tr>
-          </tbody>
+                {months.map((month, index) => {
+                  const balanceValue =
+                    monthlyCashInHandTotals[index] -
+                    (monthlyRemainingExpenseTemplateTotals[index] +
+                      monthlyRemainingFixedLoanTotals[index] +
+                      monthlyRemainingJewelLoanTotals[index] +
+                      monthlyRemainingInvestmentTotals[index]);
+                  return (
+                    <td
+                      key={`est-balance-${month.key}`}
+                      className={`border-r border-cyan-300 px-3 py-1.5 text-right text-lg font-extrabold tabular-nums dark:border-cyan-900/50 ${getBalanceCellClass(
+                        balanceValue,
+                      )}`}
+                    >
+                      {balanceValue}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
           </table>
         </div>
 
@@ -2553,11 +2553,10 @@ function InlineCommentEditor({
           <button
             type="button"
             title="Comment"
-            className={`h-5 rounded border px-1 text-[10px] leading-none ${
-              hasComment
+            className={`h-5 rounded border px-1 text-[10px] leading-none ${hasComment
                 ? "border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200"
                 : "border-slate-300 bg-transparent text-slate-500 dark:border-slate-700 dark:text-slate-400"
-            }`}
+              }`}
           >
             C
           </button>

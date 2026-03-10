@@ -19,8 +19,8 @@ export type Navigation = {
 };
 
 export const siteConfig = {
-  title: "VisActor Next Template",
-  description: "Template for VisActor and Next.js",
+  title: "Nirai Budget Tracker",
+  description: "A budget tracking application built with VisActor and Next.js.",
 };
 
 export const navigations: Navigation[] = [
@@ -35,24 +35,9 @@ export const navigations: Navigation[] = [
     href: "/budget-grid",
   },
   {
-    icon: FolderTree,
-    name: "Categories",
-    href: "/categories",
-  },
-  {
-    icon: ReceiptText,
-    name: "Expense Templates",
-    href: "/expense-templates",
-  },
-  {
     icon: Gem,
     name: "Jewel Loans",
     href: "/jewel-loans",
-  },
-  {
-    icon: Landmark,
-    name: "Income",
-    href: "/income-records",
   },
   {
     icon: HandCoins,
@@ -61,12 +46,22 @@ export const navigations: Navigation[] = [
   },
   {
     icon: CircleDollarSign,
-    name: "Ceetu Investments",
+    name: "Investments",
     href: "/investments/ceetu",
   },
   {
-    icon: MessagesSquare,
-    name: "Ticket",
-    href: "/ticket",
+    icon: Landmark,
+    name: "Income",
+    href: "/income-records",
+  },
+  {
+    icon: FolderTree,
+    name: "Categories",
+    href: "/categories",
+  },
+  {
+    icon: ReceiptText,
+    name: "Expense Format",
+    href: "/expense-templates",
   },
 ];
