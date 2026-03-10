@@ -462,12 +462,12 @@ export default function EditJewelLoanPage() {
                     </p>
                     <p>
                       Dates: {formatDate(entry.previous_loan_date)} to{" "}
-                      {formatDate(entry.previous_due_date)} ->{" "}
+                      {formatDate(entry.previous_due_date)} {"->"}{" "}
                       {formatDate(entry.renewed_loan_date)} to{" "}
                       {formatDate(entry.renewed_due_date)}
                     </p>
                     <p>
-                      Grams: {entry.previous_grams ?? "-"} ->{" "}
+                      Grams: {entry.previous_grams ?? "-"} {"->"}{" "}
                       {entry.renewed_grams ?? "-"}
                     </p>
                   </div>
