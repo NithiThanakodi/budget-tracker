@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "../../../utils/supabase";
+import { LecternIcon } from "lucide-react";
 
 type FixedLoan = {
   id: string;
@@ -35,7 +36,7 @@ const isInSameMonth = (d1: Date, d2: Date) =>
 
 const getRemainingMonths = (startDateValue: string | null, endDateValue: string | null) => {
   if (!endDateValue || !startDateValue) return null;
-  var startDate = new Date(startDateValue);
+  let startDate = new Date(startDateValue);
   const today = new Date();
   if (startDate <= today) {
     startDate = today;
