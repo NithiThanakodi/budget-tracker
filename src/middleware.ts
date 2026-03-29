@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/api/public"];
 const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co";
 const SUPABASE_ANON_KEY =
@@ -35,14 +35,17 @@ export async function middleware(req: NextRequest) {
   } = await supabase.auth.getSession();
 
   const path = req.nextUrl.pathname;
-  const isPublicPath = PUBLIC_PATHS.includes(path);
+  const isPublicPath = PUBLIC_PATHS.some(
+    (publicPath) => path === publicPath || path.startsWith(`${publicPath}/`),
+  );
+  const isLoginPath = path === "/login";
   const allowedEmails = getAllowedEmails();
   const sessionEmail = session?.user?.email?.toLowerCase();
   const isAllowedUser =
     allowedEmails.length === 0 ||
     (typeof sessionEmail === "string" && allowedEmails.includes(sessionEmail));
 
-  if (session && !isAllowedUser) {
+  if (!isPublicPath && session && !isAllowedUser) {
     await supabase.auth.signOut();
     const redirectUrl = new URL("/login", req.url);
     redirectUrl.searchParams.set(
@@ -52,7 +55,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (isPublicPath && session) {
+  if (isLoginPath && session) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
